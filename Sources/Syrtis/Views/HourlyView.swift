@@ -31,7 +31,7 @@ struct HourlyView: View {
     private static let timelineStep = 200
 
     @AppStorage("tokenbar.hourly.mode") private var modeRaw = Mode.timeline.rawValue
-    @State private var visible = HourlyView.timelineInitial
+    @SyrtisState private var visible = HourlyView.timelineInitial
 
     private var mode: Mode { Mode(rawValue: modeRaw) ?? .timeline }
 

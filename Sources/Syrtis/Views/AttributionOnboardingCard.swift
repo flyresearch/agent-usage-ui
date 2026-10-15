@@ -138,7 +138,7 @@ struct AttributionOnboardingCardView: View {
     /// itself is read through `defaults.object`, see `mayShow(defaults:)`.
     @AppStorage(UsageAttribution.confirmedKey) private var confirmedRaw = ""
     @AppStorage(AttributionOnboardingCard.dismissedKey) private var dismissed = false
-    @State private var applyFailure: String?
+    @SyrtisState private var applyFailure: String? = nil
 
     /// Computed once per body from THIS surface's own inputs — the model
     /// report and the agent-usage payload the popover already polls — never

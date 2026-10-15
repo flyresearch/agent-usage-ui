@@ -3339,7 +3339,7 @@ enum SelfTest {
             "attributed series refreshes when the effective timezone changes")
 
         // The baseline has to outlive the model: PopoverView holds these as
-        // @State and StatusItemController rebuilds it on every open, so a
+        // @SyrtisState and StatusItemController rebuilds it on every open, so a
         // per-instance baseline would be nil again by the time the user's new
         // timezone reaches a load and the stale cached day keys would be served.
         let remountSource = AttributedSeriesTestSource(

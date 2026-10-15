@@ -51,7 +51,7 @@ struct QuotaHistoryCard: View {
     /// are the five `mineTokens` is summed from, so they reconcile with the
     /// figure the pointer is on rather than explaining a different number.
     @Environment(\.popoverScrollViewport) private var viewport
-    @State private var cardFrame: CGRect = .zero
+    @SyrtisState private var cardFrame: CGRect = .zero
     /// What the tooltip is describing. A window row and one of its model
     /// lines are the same question at two scopes, so one target type serves
     /// both rather than two nearly-identical hover paths.
@@ -63,9 +63,9 @@ struct QuotaHistoryCard: View {
         let title: String?
         let breakdown: TokenBreakdown
     }
-    @State private var hovered: HoverTarget?
-    @State private var hoverAnchorInCard: CGPoint = .zero
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var hovered: HoverTarget?
+    @SyrtisState private var hoverAnchorInCard: CGPoint = .zero
+    @SyrtisState private var tooltipSize: CGSize = .zero
     private static let tooltipWidth: CGFloat = 176
     /// The card's own coordinate space. Asking `onContinuousHover` for a
     /// point in it yields exactly what `PopoverTooltipPlacement.offset`
@@ -74,7 +74,7 @@ struct QuotaHistoryCard: View {
     /// card took three attempts to fix.
     private static let cardSpace = "quota-history-card"
 
-    @State private var expanded: Int64?
+    @SyrtisState private var expanded: Int64?
 
     /// How many rows are drawn right now. Grows by `visibleRows` per press of
     /// the footer button and never shrinks, which is the property the two
@@ -87,7 +87,7 @@ struct QuotaHistoryCard: View {
     /// same view identity, an entirely different history underneath it — and
     /// landed them on a window already grown to 36 rows with no "Show more"
     /// beneath it and both aggregates folded over the inherited count.
-    @State private var shownCount = QuotaHistoryCard.visibleRows
+    @SyrtisState private var shownCount = QuotaHistoryCard.visibleRows
 
     /// Below this the cycle was barely witnessed and its consumption figure is
     /// not evidence about the window — the app simply was not running for most

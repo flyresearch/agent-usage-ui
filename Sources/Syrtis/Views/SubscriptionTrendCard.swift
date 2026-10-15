@@ -25,10 +25,10 @@ struct SubscriptionTrendCard: View {
     /// tooltip is clamped to this frame and laid out in it — two different
     /// coordinate spaces there is the bug the window card took three attempts
     /// to fix.
-    @State private var cardFrame: CGRect = .zero
-    @State private var hoverIndex: Int?
-    @State private var hoverAnchorInCard: CGPoint = .zero
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var cardFrame: CGRect = .zero
+    @SyrtisState private var hoverIndex: Int?
+    @SyrtisState private var hoverAnchorInCard: CGPoint = .zero
+    @SyrtisState private var tooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var viewport
 
     private static let tooltipWidth: CGFloat = 176

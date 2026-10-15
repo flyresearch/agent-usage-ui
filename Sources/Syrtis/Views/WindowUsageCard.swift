@@ -54,16 +54,16 @@ struct WindowUsageCard: View {
     /// so it stays inside the card: escaping it means the next card's glass
     /// chrome and content paint over the tooltip, which is what a "border in
     /// the foreground" actually is.
-    @State private var cardFrame: CGRect = .zero
+    @SyrtisState private var cardFrame: CGRect = .zero
     /// The hovered zone and its anchor, both kept so the tooltip can live at
     /// card level. Third attempt at this: the tooltip must be laid out in the
     /// same coordinate space it is clamped to, or the offset the placement
     /// helper returns is measured from one origin and applied to another.
-    @State private var hoverZone: HitZone?
-    @State private var hoverAnchorInCard: CGPoint = .zero
-    @State private var hover: Int?
-    @State private var hoverPoint: CGPoint = .zero
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var hoverZone: HitZone?
+    @SyrtisState private var hoverAnchorInCard: CGPoint = .zero
+    @SyrtisState private var hover: Int?
+    @SyrtisState private var hoverPoint: CGPoint = .zero
+    @SyrtisState private var tooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var viewport
 
     /// Stage-1 placeholders and stage-2 content read the SAME constants, so
@@ -324,7 +324,7 @@ struct WindowUsageCard: View {
                     // Anchor X pins to the zone edge, Y follows the cursor, and
                     // both are translated into the card's space here — the one
                     // place that knows both frames. Read the local `zone`, not
-                    // the @State we just wrote: within one closure run that
+                    // the @SyrtisState we just wrote: within one closure run that
                     // still holds the previous value, and the anchor would lag
                     // a zone behind the cursor.
                     let anchorX: CGFloat = zone.map {
@@ -675,9 +675,9 @@ private struct QuotaChartStage: View {
     let draw: (GraphicsContext, ChartGeometry) -> Void
 
     @Environment(\.inGlassPanel) private var inGlassPanel
-    @State private var from: ChartGeometry?
-    @State private var drawnWindow: String?
-    @State private var spanProgress: Double = 1
+    @SyrtisState private var from: ChartGeometry?
+    @SyrtisState private var drawnWindow: String?
+    @SyrtisState private var spanProgress: Double = 1
 
     var body: some View {
         MorphingQuotaCanvas(

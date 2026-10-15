@@ -55,8 +55,8 @@ extension Font {
 struct BrandMark: View {
     /// Loaded once: `NSImage` PDF rasterisation is not free and the mark is
     /// drawn on every popover layout pass.
-    private static let image: NSImage? = {
-        guard let url = Bundle.tokenBarResources.url(forResource: "brandmark", withExtension: "pdf"),
+    static let image: NSImage? = {
+        guard let url = Bundle.tokenBarResources.url(forResource: FleetMode.enabled ? "agent-usage-mark" : "brandmark", withExtension: "pdf"),
               let img = NSImage(contentsOf: url)
         else { return nil }
         img.isTemplate = true
@@ -69,7 +69,7 @@ struct BrandMark: View {
                 .resizable()
                 .renderingMode(.template)
                 .aspectRatio(contentMode: .fit)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(FleetMode.enabled ? Color.indigo : Color.secondary)
         } else {
             // An unbundled build with no resource bundle still lays out the
             // header correctly rather than collapsing the frame to zero.

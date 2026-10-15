@@ -32,9 +32,9 @@ struct DailyView: View {
     /// once a row is actually expanded — see `DashboardModel.ensureModelColors`.
     var onExpand: (() -> Void)?
 
-    @State private var openDate: String?
-    @State private var hover: HoverState?
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var openDate: String?
+    @SyrtisState private var hover: HoverState?
+    @SyrtisState private var tooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var popoverScrollViewport
 
     struct DayRow {
@@ -167,10 +167,10 @@ struct DailyView: View {
                         .rotationEffect(.degrees(isOpen ? 90 : 0))
                     Text(Format.monthDay(row.date))
                         .font(.caption)
-                    Text("%@ msgs".localized(row.messages.formatted()))
+                    Text(FleetMode.enabled ? (row.messages>0 ? "已计量 "+row.messages.formatted() : "计数未覆盖") : "%@ msgs".localized(row.messages.formatted()))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
-                    if let turns = row.turns {
+                    if !FleetMode.enabled, let turns = row.turns {
                         Text("%@ turns".localized(turns.formatted()))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)

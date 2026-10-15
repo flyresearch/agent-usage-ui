@@ -78,9 +78,9 @@ struct UsageChartCard: View {
     /// this used to duplicate (the exact kind of hardcoded state-name string
     /// this round's audit went looking for).
     @AppStorage("tokenbar.chart.view") private var chartViewRaw = ChartView.bars.rawValue
-    @State private var hoverIndex: Int?
-    @State private var hoverPoint: CGPoint = .zero
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var hoverIndex: Int?
+    @SyrtisState private var hoverPoint: CGPoint = .zero
+    @SyrtisState private var tooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var popoverScrollViewport
 
     private static let legendMax = 12
@@ -179,7 +179,7 @@ struct UsageChartCard: View {
                     ])
                 }
                 picker(selection: $metricRaw, options: [
-                    (ChartMetric.tokens.rawValue, "Tokens"), (ChartMetric.cost.rawValue, "Price"),
+                    (ChartMetric.tokens.rawValue, "Tokens"), (ChartMetric.cost.rawValue, FleetMode.enabled ? "估算金额" : "Price"),
                 ])
             }
         }

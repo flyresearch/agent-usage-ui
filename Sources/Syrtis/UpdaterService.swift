@@ -15,7 +15,7 @@ import Sparkle
 final class UpdaterService: NSObject, SPUUpdaterDelegate {
     static let shared = UpdaterService()
 
-    nonisolated static var isAvailable: Bool { Bundle.main.bundleURL.pathExtension == "app" }
+    nonisolated static var isAvailable: Bool { !FleetMode.enabled && Bundle.main.bundleURL.pathExtension == "app" }
 
     /// Display version of an available update (nil = up to date / unknown).
     private(set) var availableVersion: String?

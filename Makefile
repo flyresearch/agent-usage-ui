@@ -128,3 +128,26 @@ endef
 define sync_localizations
 	cp -R Sources/Syrtis/Resources/Localizations/*.lproj .build/$(1)/
 endef
+
+# Isolated agent-usage consumer; does not build the upstream online FFI target.
+.PHONY: offline-check offline-build offline-app
+offline-check:
+	cd offline-ui && swift run UsageCoreCheck
+offline-build:
+	cd offline-ui && swift build --product AgentUsage
+offline-app:
+	@test -n "$(COLLECTOR_BINARY)" || { echo "Set COLLECTOR_BINARY to the explicitly built collector" >&2; exit 1; }
+	@test -n "$(COLLECTOR_SOURCE)" || { echo "Set COLLECTOR_SOURCE for license notices" >&2; exit 1; }
+	offline-ui/scripts/bundle.sh "$(COLLECTOR_BINARY)" "$(COLLECTOR_SOURCE)"
+
+.PHONY: offline-integration
+offline-integration:
+	@test -n "$(COLLECTOR_BINARY)" || { echo "Set COLLECTOR_BINARY for the real collector integration check" >&2; exit 1; }
+	cd offline-ui && AGENT_USAGE_TEST_COLLECTOR="$(COLLECTOR_BINARY)" swift run UsageCoreCheck
+
+.PHONY: fleet-ui-check fleet-ui-app
+fleet-ui-check:
+	swift build --product Syrtis
+	$$(swift build --show-bin-path)/Syrtis --fleet-projection-check
+fleet-ui-app:
+	scripts/bundle-fleet.sh "$(COLLECTOR_BINARY)" "$(COLLECTOR_SOURCE)"

@@ -32,6 +32,7 @@ enum AppView: String, CaseIterable {
     /// guaranteed fallback target (see `effective`).
     static func visible(hiddenRaw: String) -> [AppView] {
         let hidden = ClientRegistry.parseIdSet(hiddenRaw)
+        if FleetMode.enabled {return [.overview,.models,.monthly,.daily]}
         return allCases.filter { !toggleable.contains($0) || !hidden.contains($0.rawValue) }
     }
 
@@ -44,6 +45,7 @@ enum AppView: String, CaseIterable {
     /// just-hidden client tab. Guarded to `toggleable` lenses for the same
     /// tamper-resistance reason as `visible`.
     static func effective(_ view: AppView, hiddenRaw: String) -> AppView {
+        if FleetMode.enabled && ![AppView.overview,.models,.monthly,.daily].contains(view) {return .overview}
         guard toggleable.contains(view) else { return view }
         return ClientRegistry.parseIdSet(hiddenRaw).contains(view.rawValue) ? .overview : view
     }
@@ -878,6 +880,12 @@ private struct DashboardSnapshot {
     /// without finishing any sooner overall. The dashboard only needs the graph
     /// to render, so model-dependent lenses request it afterwards through
     /// `ensureModelData(for:)`, keyed on the committed payload generation.
+    func reloadFleetScope() async {
+        guard FleetMode.enabled else {return}
+        payload=nil;stats=nil;modelReport=nil;phase = .loading
+        await reload(force:false,kind:.manual)
+    }
+
     func load() async {
         do {
             let year = self.year

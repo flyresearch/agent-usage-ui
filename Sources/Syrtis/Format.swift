@@ -31,7 +31,7 @@ enum Format {
     }
 
     static func usd(_ amount: Double) -> String {
-        String(format: "$%.2f", amount)
+        (FleetMode.enabled ? "≈" : "") + String(format: "$%.2f", amount)
     }
 
     /// A "this many times over" multiple, for the implausible-cost warning.

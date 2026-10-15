@@ -477,9 +477,9 @@ struct ContributionGraph3D: View {
         static let idleDelay: Duration = .seconds(8)
     }
 
-    @State private var holder = GraphHolder()
-    @State private var hintVisible = true
-    @State private var hintReturn: Task<Void, Never>?
+    @SyrtisState private var holder = GraphHolder()
+    @SyrtisState private var hintVisible = true
+    @SyrtisState private var hintReturn: Task<Void, Never>?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {

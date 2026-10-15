@@ -19,9 +19,9 @@ struct MonthlyView: View {
     /// See `DailyView.onExpand`.
     var onExpand: (() -> Void)?
 
-    @State private var openMonth: String?
-    @State private var hover: HoverState?
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var openMonth: String?
+    @SyrtisState private var hover: HoverState?
+    @SyrtisState private var tooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var popoverScrollViewport
 
     struct MonthRow {
@@ -169,10 +169,10 @@ struct MonthlyView: View {
                         .rotationEffect(.degrees(isOpen ? 90 : 0))
                     Text(Format.monthYear(row.month))
                         .font(.caption)
-                    Text("%@ msgs".localized(row.messages.formatted()))
+                    Text(FleetMode.enabled ? (row.messages>0 ? "已计量 "+row.messages.formatted() : "计数未覆盖") : "%@ msgs".localized(row.messages.formatted()))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
-                    if let turns = row.turns {
+                    if !FleetMode.enabled, let turns = row.turns {
                         Text("%@ turns".localized(turns.formatted()))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)

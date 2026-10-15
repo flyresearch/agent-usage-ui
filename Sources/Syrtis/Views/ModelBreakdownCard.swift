@@ -31,9 +31,9 @@ struct ModelBreakdownCard: View {
     /// copy in that window would tell the user they have no model usage.
     var loading = false
 
-    @State private var expanded = false
-    @State private var hover: HoverState?
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var expanded = false
+    @SyrtisState private var hover: HoverState?
+    @SyrtisState private var tooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var popoverScrollViewport
 
     private struct HoverState {

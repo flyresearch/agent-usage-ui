@@ -26,10 +26,10 @@ struct QuotaHeatmapCard: View {
     var unreadable = false
 
     @AppStorage("tokenbar.heatmap.window") private var selectedRaw = ""
-    @State private var cardFrame: CGRect = .zero
-    @State private var hover: (weekday: Int, hour: Int)?
-    @State private var hoverAnchorInCard: CGPoint = .zero
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var cardFrame: CGRect = .zero
+    @SyrtisState private var hover: (weekday: Int, hour: Int)?
+    @SyrtisState private var hoverAnchorInCard: CGPoint = .zero
+    @SyrtisState private var tooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var viewport
 
     private static let rowHeight: CGFloat = 13

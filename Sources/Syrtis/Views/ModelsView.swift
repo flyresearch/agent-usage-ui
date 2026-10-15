@@ -14,8 +14,8 @@ struct ModelsView: View {
     /// fetch is not the same as a completed fetch that found nothing.
     var loading = false
 
-    @State private var hover: HoverState?
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var hover: HoverState?
+    @SyrtisState private var tooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var popoverScrollViewport
 
     private struct HoverState {
@@ -42,7 +42,7 @@ struct ModelsView: View {
         let totalTokens = rows.reduce(Int64(0)) { $0.saturatingAdding($1.total) }
 
         DashCard(
-            "Models by cost",
+            FleetMode.enabled ? "模型 · 目录价估算" : "Models by cost",
             trailing: {
                 VStack(alignment: .trailing, spacing: 1) {
                     // Whole sentence per key, so a translation can add a

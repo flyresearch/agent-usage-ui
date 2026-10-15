@@ -65,7 +65,7 @@ struct SettingsPanel: View {
     @AppStorage(MenuBarTextColor.customColorKey) private var textColorHex = MenuBarTextColor.defaultHex
     @AppStorage(MenuBarTextColor.warningColorKey) private var warningTextColorHex = QuotaColorLevel.warning.defaultHex
     @AppStorage(MenuBarTextColor.criticalColorKey) private var criticalTextColorHex = QuotaColorLevel.critical.defaultHex
-    @State private var editingTextColor: QuotaColorLevel?
+    @SyrtisState private var editingTextColor: QuotaColorLevel?
     @AppStorage(TrayAnimator.animateKey) private var animateTray = true
     @AppStorage(TrayAnimator.styleKey) private var animationStyle = "cat"
     @AppStorage(AnimationPace.storageKey) private var animationPaceRaw = AnimationPace.default.rawValue
@@ -75,11 +75,11 @@ struct SettingsPanel: View {
     @AppStorage(ClientTray.selectionsKey) private var individualSelectionsRaw = "{}"
     @AppStorage("tokenbar.updates.beta") private var betaUpdates = false
     /// Loaded once per panel appearance without blocking SwiftUI body creation.
-    @State private var autostartEnabled = false
+    @SyrtisState private var autostartEnabled = false
     /// Set only after the service accepts a user mutation, so a slower initial
     /// read cannot overwrite committed state while a failed mutation still lets
     /// that authoritative read settle the switch.
-    @State private var autostartMutationCommitted = false
+    @SyrtisState private var autostartMutationCommitted = false
     @AppStorage("tokenbar.limits.enabled") private var limitsEnabled = true
     @AppStorage("tokenbar.views.hidden") private var hiddenViewsRaw = ""
     @AppStorage(OverviewCard.hiddenKey) private var overviewHiddenRaw = ""
@@ -104,17 +104,17 @@ struct SettingsPanel: View {
     /// Empty means the busiest visible client. Stored as the raw id so the
     /// panel and `DiscordPresence.selection()` read one value.
     @AppStorage(DiscordPresence.selectionKey) private var discordSelectionRaw = ""
-    @State private var showLanguageRestartPrompt = false
-    @State private var attributionNotice: String?
-    @State private var attributionRevision = 0
+    @SyrtisState private var showLanguageRestartPrompt = false
+    @SyrtisState private var attributionNotice: String?
+    @SyrtisState private var attributionRevision = 0
     /// Loaded once per panel appearance; mutations write through
     /// `ClaudeExtraRoots.save`/`.apply` immediately (D1: no restart).
-    @State private var claudeExtraRoots: [String] = ClaudeExtraRoots.load()
-    @State private var claudeExtraRootsResult: ExtraScanPathsResult?
+    @SyrtisState private var claudeExtraRoots: [String] = ClaudeExtraRoots.load()
+    @SyrtisState private var claudeExtraRootsResult: ExtraScanPathsResult?
     /// Filled off the main actor — see `ClaudeExtraRoots.missingRoots`. Empty
     /// until the first probe lands, so a row shows no warning rather than a
     /// wrong one while the answer is still unknown.
-    @State private var missingClaudeRoots: Set<String> = []
+    @SyrtisState private var missingClaudeRoots: Set<String> = []
     /// The stored list itself, observed rather than copied: automatic capture
     /// changes it while this panel is open, and a copy held here would be
     /// written back over that change.
@@ -137,9 +137,9 @@ struct SettingsPanel: View {
     @AppStorage(ClientRegistry.limitsHiddenKey) private var limitsHiddenRaw = ""
 
     // Drag state for client tabs reorder (scoped to this panel)
-    @State private var tabsDragId: String?
-    @State private var tabsOverId: String?
-    @State private var tabsCardFrames: [String: CGRect] = [:]
+    @SyrtisState private var tabsDragId: String?
+    @SyrtisState private var tabsOverId: String?
+    @SyrtisState private var tabsCardFrames: [String: CGRect] = [:]
 
     private static let tabsDragSpace = "client-tabs-order"
 
@@ -217,9 +217,9 @@ struct SettingsPanel: View {
                     presentSet: presentSet,
                     tabsUniverse: tabsUniverse)
             case .usageAttribution:
-                usageAttributionPage()
+                if FleetMode.enabled {Text("离线采集不提供订阅归属和在线额度")} else {usageAttributionPage()}
             case .general:
-                generalPage()
+                if FleetMode.enabled {FleetConnectionSettings()} else {generalPage()}
             case .about:
                 aboutPage()
             }
@@ -278,7 +278,7 @@ struct SettingsPanel: View {
         section("Menubar title") {
             radioGroup(
                 selection: $trayModeRaw,
-                options: TrayMode.allCases.map { ($0.rawValue, $0.label) })
+                options: TrayMode.allCases.filter { !FleetMode.enabled || [.todayTokens,.totalTokens,.todayCost,.totalCost,.hidden].contains($0) }.map { ($0.rawValue, $0.label) })
         }
 
         section("Font color") {
@@ -318,7 +318,7 @@ struct SettingsPanel: View {
                     hint((AnimationPace(rawValue: animationPaceRaw) ?? .default).detail)
                     hint("The cat and parrot speed up and the sand gets busier as the live token rate climbs. The pace sets how much traffic reaches the top: Light at 600K tokens/min, Moderate at 3M, Heavy at 10M.")
                 }
-            } else {
+            } else if animationStyle != "agent-usage" {
                 radioGroup(
                     selection: $iconColoringRaw,
                     options: IconColoring.allCases.map { ($0.rawValue, $0.label) })
@@ -1255,6 +1255,7 @@ struct SettingsPanel: View {
                         .labelsHidden()
                 }
             }
+            if FleetMode.enabled {hint("Agent Usage 基于 Syrtis v2.7.0 的 MIT 许可 UI 进行修改，接入独立 collector/fleet。上游作者与第三方版权声明随应用保留。") }
             hint("Syrtis started as a fork of tokcat by handlecusion. Log parsing and pricing come from tokscale by Junho Yeo, the menu bar design draws on CodexBar by Peter Steinberger, and the running cat comes from RunCat by Takuto Nakamura. MIT licensed.")
         }
     }
@@ -1376,13 +1377,13 @@ struct SettingsPanel: View {
 
     // MARK: - Building blocks
 
-    private func section(_ label: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    @ViewBuilder private func section(_ label: String, @ViewBuilder content: () -> some View) -> some View {
+        if !FleetMode.enabled || !["Quota source","Individual items","Agent limits","Live trace"].contains(label) {VStack(alignment: .leading, spacing: 6) {
             Text(label.localized.uppercased())
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.tertiary)
             content()
-        }
+        }}
     }
 
     private func row(_ label: String, @ViewBuilder trailing: () -> some View) -> some View {
@@ -1507,7 +1508,7 @@ private struct MenuBarTextColorControl: View {
 private struct MenuBarTextColorPopover: View {
     @Binding var hex: String
     let level: QuotaColorLevel
-    @State private var input: String
+    @SyrtisState private var input: String
     @FocusState private var inputFocused: Bool
 
     init(hex: Binding<String>, level: QuotaColorLevel) {

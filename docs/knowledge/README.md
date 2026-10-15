@@ -4,7 +4,7 @@ id: kb-index
 kind: index
 scope: repository
 read_when: before any Syrtis task or handoff
-last_verified: 2026-10-10
+last_verified: 2026-10-15
 sources: ["README.md", "CONTRIBUTING.md", "AGENTS.md", "Makefile", "Package.swift", ".github/workflows/ci.yml", ".github/workflows/ci-release.yml", ".github/workflows/pages.yml", ".github/workflows/release.yml", ".github/workflows/update-install-count.yml"]
 ---
 
@@ -44,6 +44,8 @@ sources: ["README.md", "CONTRIBUTING.md", "AGENTS.md", "Makefile", "Package.swif
 | 歷史根因或已 parked 調查 | [`history/README.md`](history/README.md) | 對應的 history 文件 |
 | 穩定設計 rationale | [`decisions/0001-canonical-knowledge-base.md`](decisions/0001-canonical-knowledge-base.md)、[`decisions/0002-streaming-and-preaggregation.md`](decisions/0002-streaming-and-preaggregation.md)、[`decisions/0003-selective-upstream-alignment.md`](decisions/0003-selective-upstream-alignment.md) | `decisions/` 中對應文件 |
 | 歷史 alignment／engine extraction | [`plans/tokscale-alignment.md`](plans/tokscale-alignment.md)、[`plans/shared-rust-engine-extraction.md`](plans/shared-rust-engine-extraction.md) | [`vendor-tokscale.md`](vendor-tokscale.md) |
+
+The isolated offline collector consumer is documented in [offline-agent-usage.md](offline-agent-usage.md).
 
 ## Canonical tree
 

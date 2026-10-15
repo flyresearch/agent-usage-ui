@@ -1,3 +1,5 @@
+> **Agent Usage fork:** This repository adapts the original Syrtis UI for explicitly configured local/SSH fleet collection through [agent-usage](https://github.com/flyresearch/agent-usage). Start with the [fleet integration and build guide](docs/knowledge/offline-agent-usage.md). The fleet bundle uses an independent app identity and bypasses provider credentials, quota calls and updater initialization. It is experimental, locally signed, and not a distribution release. The upstream README below describes Syrtis, including features and installation links that do not describe this fleet build. Upstream MIT attribution is retained.
+
 <h1 align="center">Syrtis</h1>
 
 <p align="center">

@@ -64,16 +64,16 @@ struct AgentLimitsCard: View {
     /// different shape, a different delay and a different material from every
     /// other hover surface here, so one row explaining itself looked like it
     /// belonged to another program.
-    @State private var hoverTrend: (id: String, trend: QuotaTrend)?
-    @State private var trendCardFrame: CGRect = .zero
+    @SyrtisState private var hoverTrend: (id: String, trend: QuotaTrend)?
+    @SyrtisState private var trendCardFrame: CGRect = .zero
     /// Every indicator's frame, recorded unconditionally.
     ///
     /// The first version computed the anchor inside `onGeometryChange` and only
     /// when that row was already hovered — but geometry does not change when a
     /// cursor arrives, so the callback never fired and the anchor stayed at its
     /// initial value. The tooltip was placed, correctly, at nowhere.
-    @State private var trendFrames: [String: CGRect] = [:]
-    @State private var trendTooltipSize: CGSize = .zero
+    @SyrtisState private var trendFrames: [String: CGRect] = [:]
+    @SyrtisState private var trendTooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var trendViewport
 
     private static let trendTooltipWidth: CGFloat = 184
@@ -81,20 +81,20 @@ struct AgentLimitsCard: View {
     /// Feedback for the up-to-25s the adapter waits on an unanswered Keychain
     /// dialog. No spinner: the system dialog is on screen and IS the feedback
     /// — a second progress indicator behind it would only compete with it.
-    @State private var granting = false
+    @SyrtisState private var granting = false
     /// Whether the stored answer is an explicit no, which picks the collapsed
     /// one-line copy. Local because it changes on a button press, before any
     /// new payload arrives.
-    @State private var consentDeclined = false
+    @SyrtisState private var consentDeclined = false
     // Both are card-level, not per-row, which is correct only while exactly
     // one client can be in the consent state. `grok-bot` is the only one the
     // core wires today. Wiring a second (Claude is the candidate) makes these
     // two rows share one flag, so one card's Allow would disable the other's
     // button and seed its copy from the wrong stored answer — key them by
     // client id at that point, before adding the second prompt.
-    @State private var dragId: String?
-    @State private var overId: String?
-    @State private var cardFrames: [String: CGRect] = [:]
+    @SyrtisState private var dragId: String?
+    @SyrtisState private var overId: String?
+    @SyrtisState private var cardFrames: [String: CGRect] = [:]
 
     private var paceMode: PaceMode { PaceMode(rawValue: paceModeRaw) ?? .historical }
     private var layout: LimitsLayout { LimitsLayout(rawValue: layoutRaw) ?? .full }

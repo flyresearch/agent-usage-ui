@@ -4,7 +4,7 @@ id: kb-architecture
 kind: canonical
 scope: repository
 read_when: changing Rust parsing, the C ABI, Swift models, reports, cache, or filters
-last_verified: 2026-10-09
+last_verified: 2026-10-15
 sources: [".gitmodules", "Package.swift", "Makefile", "Sources/CTB/include/ctb.h", "crates/tb_core_ffi", "crates/tb_core_ffi/src/agent_account_scope.rs", "crates/tb_core_ffi/src/agent_quota_duration.rs", "crates/tb_core_ffi/src/agent_quota_history.rs", "Sources/TokenBarCore", "Sources/Syrtis", "docs/knowledge/plans/provider-quota-pace.md", "vendor/README.md", "public tokscale-core commit bb9a2a9", "public Syrtis PR #114", "public TokenBar-Windows PR #12", "public TokenBar-Windows PR #20"]
 ---
 
@@ -311,3 +311,11 @@ Menu bar 的「Font color」由 [`MenuBarTextColor`](../../Sources/Syrtis/MenuBa
 | Does a report hide or select clients? | Source-to-consumer matrix, ID vocabulary check, and pre-aggregation filter test |
 | Does a parser read siblings or WAL? | Fingerprint, lane, mtime, and pruning coverage |
 | Does a UI lifecycle change start or stop polling? | Closed-window CPU/render evidence and cancellation regression |
+
+
+## Isolated offline collector consumer
+
+The fork adds a separate Swift package under offline-ui, described in
+[offline-agent-usage.md](offline-agent-usage.md). It consumes the agent-usage JSON
+snapshot protocol instead of invoking the upstream provider/FFI startup path.
+This is an additional entrypoint; it does not change the existing C ABI.

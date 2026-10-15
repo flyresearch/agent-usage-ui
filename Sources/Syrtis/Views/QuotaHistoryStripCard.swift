@@ -28,12 +28,12 @@ struct QuotaHistoryStripCard: View {
     private static let minimumInk: CGFloat = 1
     private static let tooltipWidth: CGFloat = 168
 
-    @State private var cardFrame: CGRect = .zero
+    @SyrtisState private var cardFrame: CGRect = .zero
     /// Which window and which bar in it. Kept together so a stale window id can
     /// never pair with a live bar index.
-    @State private var hover: (window: String, index: Int)?
-    @State private var hoverAnchorInCard: CGPoint = .zero
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var hover: (window: String, index: Int)?
+    @SyrtisState private var hoverAnchorInCard: CGPoint = .zero
+    @SyrtisState private var tooltipSize: CGSize = .zero
     @Environment(\.popoverScrollViewport) private var viewport
 
     var body: some View {

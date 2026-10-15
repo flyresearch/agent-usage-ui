@@ -4,6 +4,15 @@ import AppKit
 // `--selftest` runs the TokenBarCore logic checks; anything else boots the
 // menu-bar app (no storyboard, no .app bundle yet).
 
+if let index=CommandLine.arguments.firstIndex(of:"--fleet-report-check"),CommandLine.arguments.count>index+1 {
+    let path=CommandLine.arguments[index+1]
+    Task {exit(await FleetProjectionCheck.runFile(path))}
+    dispatchMain()
+}
+if CommandLine.arguments.contains("--fleet-projection-check") {
+    Task {exit(await FleetProjectionCheck.run())}
+    dispatchMain()
+}
 AppLanguage.prepareDirectRunResources()
 
 if CommandLine.arguments.contains("--smoke") {
@@ -42,7 +51,7 @@ if DemoData.ignoresLocalVisibility {
 // First launch after the Syrtis rename: move TokenBar.app to Syrtis.app and
 // relaunch from there (exits on success). Before NSApplication, so nothing has
 // loaded a resource through the old path yet.
-BundleRename.runIfNeeded()
+if !FleetMode.enabled {BundleRename.runIfNeeded()}
 
 let app = NSApplication.shared
 let delegate = AppDelegate()

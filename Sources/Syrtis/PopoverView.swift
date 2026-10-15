@@ -19,19 +19,19 @@ struct PopoverView: View {
     /// Owns the popover's size; the drag handle below writes its height.
     @EnvironmentObject private var chrome: PopoverChrome
     /// Height at the start of the active resize drag (global-space gesture).
-    @State private var dragBase: CGFloat?
+    @SyrtisState private var dragBase: CGFloat?
 
     // The popover's model owns the shared restore snapshot — its per-open
     // teardown/rebuild is exactly what the cache exists to speed up.
-    @State private var model = DashboardModel(cachesSnapshot: true)
-    @State private var tokensPerMin: Double?
+    @SyrtisState private var model = DashboardModel(cachesSnapshot: true)
+    @SyrtisState private var tokensPerMin: Double?
     /// True while Cmd has been held alone for a beat — shows shortcut pins.
-    @State private var cmdHeld = false
+    @SyrtisState private var cmdHeld = false
     /// Quick settings card under the header (#490), toggled by the header button.
-    @State private var showQuickSettings = false
-    @State private var keyMonitor: Any?
-    @State private var flagsMonitor: Any?
-    @State private var cmdHintTask: Task<Void, Never>?
+    @SyrtisState private var showQuickSettings = false
+    @SyrtisState private var keyMonitor: Any?
+    @SyrtisState private var flagsMonitor: Any?
+    @SyrtisState private var cmdHintTask: Task<Void, Never>?
     // Round 6 audit 2: matches the sibling `activeViewRaw` default below —
     // `ChartView.bars.rawValue`, not the bare "2d" literal this used to
     // duplicate.
@@ -44,7 +44,7 @@ struct PopoverView: View {
     /// Bumped by the account pill row after it writes the per-client account
     /// preference. That preference is keyed per client, which a property wrapper
     /// cannot observe, so the write announces itself here instead.
-    @State private var accountPickTick = 0
+    @SyrtisState private var accountPickTick = 0
     @AppStorage("tokenbar.bridge.dismissed") private var bridgeDismissed = false
     /// "overview" or a client id. Persisted so the selection survives the
     /// popover's rootView teardown/rebuild cycle (StatusItemController swaps
@@ -87,7 +87,7 @@ struct PopoverView: View {
     /// Owns the attributed daily series. Mounted here for the reason its own
     /// doc comment gives: its timezone provenance is process-scoped, and the
     /// model expects to be `@State` on this view.
-    @State private var series = AttributedSeriesModel()
+    @SyrtisState private var series = AttributedSeriesModel()
 
     /// How many calendar days the trend covers. Two weeks reads as a rhythm
     /// without turning each column into a sliver at popover width.
@@ -216,6 +216,7 @@ struct PopoverView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if FleetMode.enabled {FleetStatusHeader(clients:lensClientIds,year:model.year) {Task {await model.reloadFleetScope()}}}
             if showQuickSettings {
                 QuickSettingsCard()
                     .padding(.horizontal, 12)
@@ -497,9 +498,9 @@ struct PopoverView: View {
         HStack {
             BrandMark()
                 .frame(width: 17, height: 17)
-            Text("Σύρτις")
-                .font(.syrtisWordmark(size: 15))
-                .foregroundStyle(Color.syrtisAccent)
+            Text(FleetMode.enabled ? "Agent Usage" : "Σύρτις")
+                .font(FleetMode.enabled ? .system(size:15,weight:.semibold) : .syrtisWordmark(size: 15))
+                .foregroundStyle(FleetMode.enabled ? Color.indigo : Color.syrtisAccent)
             Spacer()
             liveRateBadge
             yearMenu
@@ -733,7 +734,9 @@ struct PopoverView: View {
     }
 
     @ViewBuilder private var lensContent: some View {
-        if let payload = model.payload, let stats = model.stats {
+        if FleetMode.enabled && FleetUIState.shared.noCurrentData {
+            Text("尚无当前配置的可用快照，请刷新或检查机器状态").font(.caption).foregroundStyle(.secondary)
+        } else if let payload = model.payload, let stats = model.stats {
             // Treat a just-hidden (or unknown) active tab as Overview for THIS
             // frame's slice, so the hidden client's slice never renders even for
             // the single body pass before `resetTabIfHidden()` fixes the
@@ -755,7 +758,7 @@ struct PopoverView: View {
                     // Only on the global tab: a single client's usage is
                     // already known whose subscription it belongs to, so
                     // there is nothing here for that tab to onboard.
-                    if activeTab == ClientTray.overviewTab {
+                    if !FleetMode.enabled && activeTab == ClientTray.overviewTab {
                         OnboardingSetupCards(
                             // Every present agent, hidden tabs included: the
                             // card asks which ones get a tab.
@@ -893,7 +896,7 @@ struct PopoverView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Spacer()
-            if let version = UpdaterService.shared.availableVersion {
+            if !FleetMode.enabled, let version = UpdaterService.shared.availableVersion {
                 Button {
                     UpdaterService.shared.checkForUpdates()
                 } label: {

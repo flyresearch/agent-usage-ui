@@ -14,6 +14,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "CTB", path: "Sources/CTB"),
+        .target(name: "UsageCore", path: "offline-ui/Sources/UsageCore", resources:[.copy("Resources")]),
         .target(
             name: "TokenBarCore",
             dependencies: ["CTB"],
@@ -22,13 +23,15 @@ let package = Package(
         .executableTarget(
             name: "Syrtis",
             dependencies: [
-                "TokenBarCore",
+                "TokenBarCore", "UsageCore",
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
             path: "Sources/Syrtis",
             resources: [
                 .copy("Resources/agent-icons"),
                 .copy("Resources/brandmark.pdf"),
+                .copy("Resources/agent-usage-mark.pdf"),
+                .copy("Resources/agent-usage.icns"),
                 .copy("Resources/anim-cat2"),
                 .copy("Resources/anim-cat2-light"),
                 .copy("Resources/anim-parrot"),

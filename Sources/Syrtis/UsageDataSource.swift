@@ -319,6 +319,7 @@ enum UsageDataSources {
     static let current: any UsageDataSource = make(arguments: CommandLine.arguments)
 
     static func make(arguments: [String]) -> any UsageDataSource {
-        arguments.contains("--demo") ? DemoUsageDataSource() : LiveUsageDataSource()
+        if FleetMode.enabled { return FleetUsageDataSource.shared }
+        return arguments.contains("--demo") ? DemoUsageDataSource() : LiveUsageDataSource()
     }
 }

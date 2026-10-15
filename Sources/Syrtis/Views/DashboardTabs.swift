@@ -25,9 +25,9 @@ struct DashboardTabs: View {
     @AppStorage(ClientRegistry.tabOrderKey) private var orderRaw = ""
 
     // Drag state, scoped to this row.
-    @State private var dragId: String?
-    @State private var overId: String?
-    @State private var tabFrames: [String: CGRect] = [:]
+    @SyrtisState private var dragId: String?
+    @SyrtisState private var overId: String?
+    @SyrtisState private var tabFrames: [String: CGRect] = [:]
     @Namespace private var thumb
 
     private static let dragSpace = "client-tabs-row"

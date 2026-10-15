@@ -1,0 +1,208 @@
+{
+  "basis": "current-list-short-context-5m-cache-peak",
+  "currency": "USD",
+  "rates": {
+    "claude-fable-5-1": {
+      "cache_read": "0.25",
+      "cache_write": "12.5",
+      "input": "10",
+      "output": "50",
+      "reasoning": "50",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    "claude-haiku-5-5": {
+      "cache_read": "0.01",
+      "cache_write": "0.125",
+      "input": "0.1",
+      "output": "0.5",
+      "reasoning": "0.5",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    "claude-opus-4-8": {
+      "cache_read": "0.5",
+      "cache_write": "6.25",
+      "input": "5",
+      "output": "25",
+      "reasoning": "25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    "claude-opus-5": {
+      "cache_read": "0.5",
+      "cache_write": "6.25",
+      "input": "5",
+      "output": "25",
+      "reasoning": "25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    "claude-opus-5-5": {
+      "cache_read": "0.2",
+      "cache_write": "5",
+      "input": "4",
+      "output": "20",
+      "reasoning": "20",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    "claude-sonnet-5": {
+      "cache_read": "0.2",
+      "cache_write": "2.5",
+      "input": "2",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    "claude-sonnet-5-5": {
+      "cache_read": "0.1",
+      "cache_write": "2.5",
+      "input": "2",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    "deepseek-flash": {
+      "cache_read": "0.006",
+      "cache_write": null,
+      "input": "0.3",
+      "output": "1.2",
+      "reasoning": "1.2",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/"
+    },
+    "deepseek-v4-pro": {
+      "cache_read": "0.044",
+      "cache_write": null,
+      "input": "1.32",
+      "output": "3.96",
+      "reasoning": "3.96",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/"
+    },
+    "gpt-5": {
+      "cache_read": "0.125",
+      "cache_write": null,
+      "input": "1.25",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5"
+    },
+    "gpt-5-codex": {
+      "cache_read": "0.125",
+      "cache_write": null,
+      "input": "1.25",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5-codex"
+    },
+    "gpt-5.1": {
+      "cache_read": "0.125",
+      "cache_write": null,
+      "input": "1.25",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.1"
+    },
+    "gpt-5.1-codex": {
+      "cache_read": "0.125",
+      "cache_write": null,
+      "input": "1.25",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.1-codex"
+    },
+    "gpt-5.1-codex-max": {
+      "cache_read": "0.125",
+      "cache_write": null,
+      "input": "1.25",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.1-codex-max"
+    },
+    "gpt-5.2-codex": {
+      "cache_read": "0.175",
+      "cache_write": null,
+      "input": "1.75",
+      "output": "14",
+      "reasoning": "14",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.2-codex"
+    },
+    "gpt-5.3-codex": {
+      "cache_read": "0.175",
+      "cache_write": null,
+      "input": "1.75",
+      "output": "14",
+      "reasoning": "14",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.3-codex"
+    },
+    "gpt-5.4": {
+      "cache_read": "0.25",
+      "cache_write": null,
+      "input": "2.5",
+      "output": "15",
+      "reasoning": "15",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.4"
+    },
+    "gpt-5.4-mini": {
+      "cache_read": "0.075",
+      "cache_write": null,
+      "input": "0.75",
+      "output": "4.5",
+      "reasoning": "4.5",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.4-mini"
+    },
+    "gpt-5.5": {
+      "cache_read": "0.5",
+      "cache_write": null,
+      "input": "5",
+      "output": "30",
+      "reasoning": "30",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.5"
+    },
+    "gpt-5.6-luna": {
+      "cache_read": "0.02",
+      "cache_write": "0.250",
+      "input": "0.2",
+      "output": "1.2",
+      "reasoning": "1.2",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.6-luna"
+    },
+    "gpt-5.6-sol": {
+      "cache_read": "0.4",
+      "cache_write": "5.00",
+      "input": "4",
+      "output": "20",
+      "reasoning": "20",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.6-sol"
+    },
+    "gpt-5.6-terra": {
+      "cache_read": "0.2",
+      "cache_write": "2.50",
+      "input": "2",
+      "output": "12",
+      "reasoning": "12",
+      "source": "https://developers.openai.com/api/docs/models/gpt-5.6-terra"
+    },
+    "gpt-6-astra": {
+      "cache_read": "1",
+      "cache_write": "12.5",
+      "input": "10",
+      "output": "50",
+      "reasoning": "50",
+      "source": "https://developers.openai.com/api/docs/models/gpt-6-astra"
+    },
+    "gpt-6-sol": {
+      "cache_read": "0.2",
+      "cache_write": "2.5",
+      "input": "2",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://developers.openai.com/api/docs/models/gpt-6-sol"
+    },
+    "gpt-6.1-sol": {
+      "cache_read": "0.1",
+      "cache_write": "2.5",
+      "input": "2",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://developers.openai.com/api/docs/models/gpt-6.1-sol"
+    }
+  },
+  "schema_version": 1,
+  "version": "2026-10-15.standard-v1"
+}

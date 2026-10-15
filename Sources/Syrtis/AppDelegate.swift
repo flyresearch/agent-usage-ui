@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        if FleetMode.enabled {FleetRuntime.shared.start();return}
 #if DEBUG
         if TrayAnimationCPUTestConfiguration.current != nil {
             startTrayAnimationCPUTest()

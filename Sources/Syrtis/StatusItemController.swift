@@ -123,11 +123,11 @@ final class StatusItemController: NSObject {
         if let button = statusItem.button {
             let placeholder = NSImage(size: .zero)
             placeholder.isTemplate = true
-            placeholder.accessibilityDescription = "Syrtis"
+            placeholder.accessibilityDescription = FleetMode.enabled ? "Agent Usage" : "Syrtis"
             button.image = placeholder
             button.imagePosition = .imageLeft
-            button.toolTip = "Syrtis"
-            button.setAccessibilityLabel("Syrtis")
+            button.toolTip = FleetMode.enabled ? "Agent Usage" : "Syrtis"
+            button.setAccessibilityLabel(FleetMode.enabled ? "Agent Usage" : "Syrtis")
             button.target = self
             button.action = #selector(togglePopover(_:))
             // Right-click opens the quota-source menu (battery-icon pattern).

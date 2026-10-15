@@ -284,8 +284,8 @@ struct OnboardingSetupCards: View {
 /// Reads the login item asynchronously, so the card can say it is already on
 /// for an existing user instead of offering to turn it on.
 private struct LoginCard: View {
-    @State private var enabled: Bool?
-    @State private var failed = false
+    @SyrtisState private var enabled: Bool?
+    @SyrtisState private var failed = false
 
     var body: some View {
         DashCard(OnboardingSetupCopy.loginTitle) {

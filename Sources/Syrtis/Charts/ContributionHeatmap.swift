@@ -132,13 +132,13 @@ struct ContributionHeatmap: View {
     /// `UsageChartCard`'s own `hoverIndex`-into-`bars` already uses for its
     /// 2D bar chart — keeps the tooltip's numbers current instead of frozen
     /// at whatever they were the instant hovering began.
-    @State private var hoverIndex: Int?
-    @State private var tooltipSize: CGSize = .zero
+    @SyrtisState private var hoverIndex: Int?
+    @SyrtisState private var tooltipSize: CGSize = .zero
     /// The scrolling content's on-screen origin, tracked so the tooltip
     /// (rendered in an overlay *outside* the horizontal ScrollView, see
     /// `body`) can find a hovered cell's true screen position instead of one
     /// pinned to the clipped, scrolled-past content frame.
-    @State private var contentOrigin: CGPoint = .zero
+    @SyrtisState private var contentOrigin: CGPoint = .zero
     @Environment(\.popoverScrollViewport) private var popoverScrollViewport
 
     private static let tooltipWidth: CGFloat = 170

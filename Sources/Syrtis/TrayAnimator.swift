@@ -476,7 +476,7 @@ final class TrayAnimator {
     /// Every menu-bar icon choice with its label, for Settings and the setup
     /// card, so the two cannot drift apart.
     nonisolated static var iconStyleOptions: [(value: String, label: String)] {
-        [("cat", "Spinning cat"), ("parrot", "Party parrot"), (sandStyle, "Sand shoal")]
+        (FleetMode.enabled ? [("agent-usage", "Agent Usage")]:[]) + [("cat", "Spinning cat"), ("parrot", "Party parrot"), (sandStyle, "Sand shoal")]
             + QuotaIconStyle.allCases.map { ($0.rawValue, $0.label) }
     }
 
@@ -523,6 +523,13 @@ final class TrayAnimator {
     private func refreshIcon() {
         guard !isStopped else { return }
         let style = currentStyle
+        if FleetMode.enabled && style=="agent-usage" {
+            if let image=BrandMark.image?.copy() as? NSImage {
+                image.size=Self.frameBox;image.accessibilityDescription="Agent Usage"
+                controller?.setStaticIcon(image,isTemplate:true)
+            }
+            return
+        }
         if QuotaIconStyle(rawValue: style) != nil {
             renderGaugeIcon()
             return

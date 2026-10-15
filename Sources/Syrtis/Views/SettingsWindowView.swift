@@ -15,7 +15,7 @@ private struct FooterLink: View {
     let systemImage: String
     let url: String
 
-    @State private var hovering = false
+    @SyrtisState private var hovering = false
 
     var body: some View {
         Link(destination: URL(string: url)!) {
@@ -41,13 +41,13 @@ struct SettingsWindowView: View {
     // stays all-time even when the dashboard is scoped to one saved year. The
     // model still defaults cachesSnapshot to false: it must never overwrite the
     // popover's restore snapshot with its independently polled data.
-    @State private var model = DashboardModel(initialYear: nil)
-    @State private var tokensPerMin: Double?
+    @SyrtisState private var model = DashboardModel(initialYear: nil)
+    @SyrtisState private var tokensPerMin: Double?
     /// Set only when a caller asked for a specific place; the intro card is
     /// the one caller today. Nil means an ordinary open, which must land
     /// wherever the user last was.
     var destination: SettingsWindowController.Destination?
-    @State private var selectedPage = SettingsPanel.Page.menuBar
+    @SyrtisState private var selectedPage = SettingsPanel.Page.menuBar
     /// Master switch: off hides the preview's Agent-limits card too.
     @AppStorage("tokenbar.limits.enabled") private var limitsEnabled = true
     /// Observed so the preview (tab list, limits card, trace card) re-derives
@@ -341,7 +341,7 @@ struct SettingsWindowView: View {
                 }
             }
 
-            if limitsEnabled {
+            if !FleetMode.enabled && limitsEnabled {
                 section("Agent limits card") {
                     AgentLimitsCard(
                         clients: previewClients,
@@ -350,9 +350,9 @@ struct SettingsWindowView: View {
                 }
             }
 
-            section("Live session card") {
+            if !FleetMode.enabled {section("Live session card") {
                 UsageTraceCard(buckets: model.trace, windowSecs: 600, hidden: hiddenClients)
-            }
+            }}
         }
     }
 
@@ -480,6 +480,7 @@ private struct MenuBarMock: View {
 
     @ViewBuilder
     private func icon(remaining: Double?) -> some View {
+        if FleetMode.enabled && animationStyle=="agent-usage" {BrandMark().frame(width:18,height:18)} else {
         if let gauge = QuotaIconStyle(rawValue: animationStyle) {
             let coloring = IconColoring(rawValue: iconColoringRaw) ?? .warningOnly
             // Same stale rule as the menu bar (#8), evaluated at render time.
@@ -513,6 +514,8 @@ private struct MenuBarMock: View {
                 Image(nsImage: frames[0])
             }
         }
+    }
+
     }
 
     /// Same pacing as TrayAnimator: idle 2 fps up to 50k tok/min, a log ramp
