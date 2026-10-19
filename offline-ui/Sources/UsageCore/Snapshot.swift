@@ -71,7 +71,7 @@ public struct UsageSnapshot: Codable, Sendable {
         let formatter=DateFormatter();formatter.locale=Locale(identifier:"en_US_POSIX");formatter.calendar=Calendar(identifier:.gregorian);formatter.timeZone=TimeZone(secondsFromGMT:8*3600);formatter.dateFormat="yyyy-MM-dd";formatter.isLenient=false
         var sum = Tokens()
         for row in snapshot.rows {
-            guard ids.contains(row.source_id), label(row.model), ["codex","claude","agy","hermes","openclaw"].contains(row.agent),
+            guard ids.contains(row.source_id), label(row.model), ["codex","claude","agy","hermes","openclaw","workbuddy"].contains(row.agent),
                   row.day == nil ? ["unallocated","unallocated_interval"].contains(row.time_basis) : ["event_timestamp","aggregate_interval"].contains(row.time_basis) else {throw UsageError.invalidSnapshot}
             if let day = row.day {
                 guard day.utf8.count == 10, let date=formatter.date(from:day), formatter.string(from:date)==day else {throw UsageError.invalidSnapshot}

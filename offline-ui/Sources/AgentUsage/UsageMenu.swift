@@ -27,7 +27,7 @@ struct UsageMenu:View {
             ScrollView(.horizontal,showsIndicators:false) {
                 HStack(spacing:6) {
                     agentButton("all","全部")
-                    ForEach(["codex","claude","agy","hermes","openclaw"],id:\.self) {agentButton($0,$0 == "agy" ? "agy" : $0.capitalized)}
+                    ForEach(["codex","claude","agy","hermes","openclaw","workbuddy"],id:\.self) {agentButton($0,$0 == "agy" ? "agy" : $0.capitalized)}
                 }.padding(.horizontal,16).padding(.vertical,10)
             }
             Picker("视图",selection:$store.menuPage) {ForEach(["概览","模型","机器"],id:\.self) {Text($0).tag($0)}}.pickerStyle(.segmented).padding(.horizontal,16).padding(.bottom,12)

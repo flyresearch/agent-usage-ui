@@ -40,7 +40,13 @@ enum FleetProjectionCheck {
             let pricedGraph=try await source.projectGraph(.local(priced),year:nil)
             let pricedModels=try await source.projectModels(.local(priced),year:nil)
             guard abs(pricedGraph.summary.totalCost-0.00002375)<0.00000000001,pricedGraph.contributions[0].totals.messages==3,pricedModels.totalMessages==3,abs(pricedGraph.summary.averagePerDay-0.00002375)<0.00000000001,abs(pricedGraph.summary.maxCostInSingleDay-0.00002375)<0.00000000001 else {throw FleetSourceError.unavailable}
-            print("{\"passed\":9,\"failed\":[]}");return 0
+            var wbFixture=pricedFixture
+            pricedRows[0]["agent"]="workbuddy";wbFixture["rows"]=pricedRows
+            let wb=try UsageSnapshot.decode(JSONSerialization.data(withJSONObject:wbFixture))
+            let wbGraph=try await source.projectGraph(.local(wb),year:nil)
+            let wbModels=try await source.projectModels(.local(wb),year:nil)
+            guard wbGraph.summary.clients.contains("workbuddy"),wbModels.entries.contains(where:{$0.client=="workbuddy" && $0.total==100}),wbGraph.contributions[0].totals.messages==3 else {throw FleetSourceError.unavailable}
+            print("{\"passed\":10,\"failed\":[]}");return 0
         } catch {print("{\"passed\":0,\"failed\":[\"fleet_projection\"]}");return 1}
     }
 }

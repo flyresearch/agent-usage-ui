@@ -14,6 +14,7 @@ public struct ClientStyle: Sendable {
 public enum ClientRegistry {
     static let entries: [String: (displayName: String, color: String)] = [
         "claude": ("Claude Code", "#d97706"),
+        "workbuddy": ("WorkBuddy", "#0d9488"),
         "openclaw": ("OpenClaw", "#dc2626"),
         "gemini": ("Gemini CLI", "#60a5fa"),
         // The `opencode` client also carries the OpenCode Go subscription quota

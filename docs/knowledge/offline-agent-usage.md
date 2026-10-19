@@ -4,7 +4,7 @@ id: offline-agent-usage
 kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
-last_verified: 2026-10-15
+last_verified: 2026-10-19
 sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile"]
 ---
 
@@ -219,3 +219,12 @@ Generate preview iconsets under `.build` and use iconutil for ICNS assembly.
 About copy identifies Agent Usage as a modified Syrtis UI fork and retains the
 upstream and third-party attribution. Brand changes do not remove licenses or
 claim independent authorship of the upstream interface.
+
+## WorkBuddy collector support
+
+The snapshot decoder accepts the `workbuddy` agent label. The original target
+registers WorkBuddy in `ClientRegistry`; its existing dynamic client filters,
+graph and model projections consume normalized collector rows. The transition
+menu also includes the agent. Synthetic checks exercise decoding, filtering,
+metered counts and original-target projection. This change does not enable a
+source in private configurations or replace an installed application.

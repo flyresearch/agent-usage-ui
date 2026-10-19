@@ -80,6 +80,13 @@ func decodeFleet(_ value:[String:Any]) throws ->FleetSnapshot {try FleetSnapshot
             try require(LocalCollector.reboundSettings(custom,currentExecutable:new).executable==custom.executable)
             try require(LocalCollector.reboundSettings(settings,currentExecutable:nil).executable==old.path)
         }
+        check("workbuddy_decode_filter_and_count") {
+            var v=fixture();var rows=v["rows"] as! [[String:Any]]
+            rows[0]["agent"]="workbuddy";rows[0]["messages"]=["known":2,"complete":true];v["rows"]=rows
+            let snapshot=try decode(v);let selected=snapshot.selected(agent:"workbuddy")
+            try require(selected.count==1 && UsageSnapshot.total(selected).total==115)
+            try require(MessageCount.total(selected)==MessageCount(known:2,complete:true))
+        }
         check("filter_before_sum") {
             let s=try decode(fixture());try require(s.totals.total==137)
             try require(UsageSnapshot.total(s.selected(agent:"codex")).total==115)
