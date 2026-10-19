@@ -210,6 +210,7 @@ func decodeFleet(_ value:[String:Any]) throws ->FleetSnapshot {try FleetSnapshot
             }
         }
         configurationChecks(check)
+        liveChecks(check)
         let result:[String:Any]=["passed":passed,"failed":failures,"collector_integration":ProcessInfo.processInfo.environment["AGENT_USAGE_TEST_COLLECTOR"] == nil ? "not_requested" : "executed"]
         print(String(data:try JSONSerialization.data(withJSONObject:result,options:.sortedKeys),encoding:.utf8)!)
         if !failures.isEmpty {exit(1)}

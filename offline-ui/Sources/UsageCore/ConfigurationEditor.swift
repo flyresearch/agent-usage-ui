@@ -93,7 +93,7 @@ public enum ConfigurationEditor {
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw ConfigurationEditError.invalid }
         var settings = current
         if object["executable"] != nil || object["stateDirectory"] != nil {
-            guard Set(object.keys).isSubset(of: ["executable", "configuration", "stateDirectory", "fleetMode", "autoRefresh"]) else { throw ConfigurationEditError.invalid }
+            guard Set(object.keys).isSubset(of: ["executable", "configuration", "stateDirectory", "fleetMode", "autoRefresh", "liveMetrics", "codexQuotaEnabled", "codexExecutable", "agyQuotaEnabled", "agyExecutable"]) else { throw ConfigurationEditError.invalid }
             settings = try JSONDecoder().decode(CollectorSettings.self, from: data)
         } else {
             settings.configuration = url.path
@@ -164,6 +164,12 @@ public enum ConfigurationEditor {
               Set(draft.hosts.map(\.name)).count == draft.hosts.count,
               (1...3600).contains(draft.timeout), (1...86400).contains(draft.staleAfter) else { throw ConfigurationEditError.invalid }
         if draft.settings.fleetMode != true && (draft.hosts.count != 1 || draft.hosts[0].remote) { throw ConfigurationEditError.invalid }
+        if draft.settings.codexQuotaEnabled == true {
+            guard let executable=draft.settings.codexExecutable,executable.hasPrefix("/"),FileManager.default.isExecutableFile(atPath:executable) else {throw ConfigurationEditError.invalid}
+        }
+        if draft.settings.agyQuotaEnabled == true {
+            guard let executable=draft.settings.agyExecutable,executable.hasPrefix("/"),FileManager.default.isExecutableFile(atPath:executable) else {throw ConfigurationEditError.invalid}
+        }
         for host in draft.hosts {
             guard label(host.name), validPath(host.executable) else { throw ConfigurationEditError.invalid }
             if host.remote {

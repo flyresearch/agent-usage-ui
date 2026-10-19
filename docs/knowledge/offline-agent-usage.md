@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-19
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift"]
 ---
 
 # Offline agent-usage consumer
@@ -30,8 +30,8 @@ explicit offline startup lane, before provider/account migration, updater,
 Keychain, Cursor sync, Antigravity capture and Discord startup. The app keeps its
 independent bundle identity and app-owned collector settings/store. The original
 target still links the upstream Rust static library and Sparkle; the fleet lane
-does not initialize the updater or use the live source. No online quota calls
-are supplied by this data source.
+does not initialize the updater or use the live source. Optional native Codex and Antigravity quota reads are supplied by the isolated bridge described
+below; legacy GUI provider initialization remains bypassed.
 
 Original graph and model DTOs are projected from validated normalized rows.
 Date-unallocated rows are excluded from daily/monthly charts and preserved in
@@ -39,8 +39,8 @@ all-time model totals, with a separate explanatory label. Missing or changed
 host configurations cannot become a zero-use graph. Known tokens remain exact;
 Int64-incompatible values fail projection. Cost/message fields required by the
 legacy DTO are internal placeholders: offline presentation marks those metrics
-unavailable, uses token rankings, and hides unsupported hourly/session/quota
-lenses. Machine selection is applied before projection.
+unavailable and uses token rankings. Later extensions below add hourly and
+controlled-role analysis, recent rate and optional native Codex quota. Machine selection is applied before projection.
 
 Build and check the original target with `make fleet-ui-check`; assemble the
 local application using `make fleet-ui-app COLLECTOR_BINARY=ABSOLUTE_BINARY
@@ -273,8 +273,8 @@ checks do not claim native rendering or live remote-machine qualification.
 ## Offline analysis lenses
 
 Hourly, Stats and Agents are enabled in fleet mode alongside Overview, Models,
-Daily and Monthly. View hiding now applies to supported fleet lenses; Quota
-remains unavailable. Source/client/host filtering occurs before hourly or role
+Daily and Monthly. View hiding applies to supported fleet lenses. The optional native quota
+extension described below also enables Quota. Source/client/host filtering occurs before hourly or role
 aggregation. Switching host clears the lazy-analysis caches and supersedes
 in-flight reports so a previous host's hours/roles cannot remain selected.
 
@@ -296,4 +296,63 @@ Synthetic collector regressions cover timezone boundaries, streaming/replay
 conflicts, cache reuse and old snapshots. Swift production projection checks
 cover same-hour mixed clients, hidden clients, old rows, year/host filters and
 controlled role totals. These checks do not qualify real-time trace or quota
-features, which still have no fleet data source.
+features. Recent rate and native CLI quota are qualified separately below.
+
+## Recent rate and optional native CLI quota
+
+Connection settings now carry optional `liveMetrics`, `codexQuotaEnabled` and
+`codexExecutable`, `agyQuotaEnabled` and `agyExecutable`. Defaults are disabled. Live mode changes automatic collection
+from five minutes to thirty seconds; all consumers share the existing in-flight
+collection, and failed automatic attempts also respect the cadence. A full
+collector snapshot carries a bounded recent-activity report. Ten-minute observed
+Token totals divided by ten produce tokens/min; they include input/cache/output
+and are not model-generation throughput. Hidden clients are filtered before the
+rate sum, and the selected host is applied before projection. Unsupported or old
+collectors remain missing/partial, not zero. Samples older than 75 seconds are
+unavailable; a recent retained last-good sample is labelled partial.
+
+Codex quota is a separate opt-in UI bridge to the official local app-server.
+Only initialize/initialized, account/read with refreshToken=false, and
+account/rateLimits/read are sent. No thread/turn, login/logout, reset redemption,
+credit purchase or notification methods are invoked. App/MCP/plugin startup is
+disabled in this child; analytics are disabled. The native CLI owns existing
+login state and any necessary native credential renewal. This app does not read
+credentials, persist account responses or initialize the upstream GUI provider
+stack. The collector itself still makes no provider requests.
+
+Responses are bounded and validated; account metadata is compared before and
+after the limits query, then discarded without logging. Only generated window
+labels, percentages, durations and reset times reach the UI. Multi-bucket limits
+are preferred over their legacy single-bucket mirror. Errors, unsupported auth,
+expired data and resets that have passed do not become zero balances. Requests
+are coalesced and limited to one per minute automatically (manual retries have a
+ten-second floor). Feature/path changes fence old in-flight responses; failures
+clear the old quota. Native process teardown first closes stdin gracefully and
+then uses a bounded exact-child termination fallback.
+
+The Quota lens and overview card display the local CLI's current account,
+independent of fleet host selection. Quota remaining in the menu bar is the most
+constrained Codex window, not an additive balance across models or machines.
+The source supplies sanitized quota DTOs to the existing indicator/gauge, with
+persistent quota caching still disabled. Other providers beyond Codex and Antigravity currently have no
+configured supported quota connector and direct users to the original product.
+
+Official protocol: [Codex App Server](https://learn.chatgpt.com/docs/app-server).
+The native bridge is independently implemented and tested with synthetic RPC
+servers. `AGENT_USAGE_TEST_CODEX` explicitly opts the standalone check harness
+into a native read-only smoke test; ordinary tests never query real accounts.
+
+Antigravity uses the official CLI `-p /usage --output-format json` command,
+introduced as a no-turn read-only print command in CLI 1.1.11. The bridge checks
+the native version before querying, and rejects responses with any model turn or
+consumed token. It requires structured quota buckets, validates remaining
+fractions and reset times, coalesces mirrored bucket IDs, and marks missing
+fractions partial. Provider names/account text are not displayed or persisted.
+The process runs in a temporary directory with bounded output and timeout.
+`AGENT_USAGE_TEST_AGY` opts into a native smoke test. Official references:
+[usage command](https://www.antigravity.google/docs/cli/commands/usage) and
+[CLI changelog](https://www.antigravity.google/docs/changelog?tab=cli).
+
+Both provider states and configuration generations are independent. The menu-bar
+remaining percentage refers specifically to Codex; Antigravity has separate
+window cards. Claude OAuth and undocumented WorkBuddy probes remain unconnected.

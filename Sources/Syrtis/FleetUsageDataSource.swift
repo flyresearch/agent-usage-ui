@@ -17,7 +17,11 @@ actor FleetUsageDataSource: UsageDataSource {
     private let pricing = try? PriceCatalog.bundled()
     private let selectedHost:@Sendable () -> String?
     init(selectedHost:@escaping @Sendable () -> String? = {UserDefaults.standard.string(forKey:"agentusage.selectedHost").flatMap{$0.isEmpty ? nil:$0}}) {self.selectedHost=selectedHost}
-    private var lastSync=Date.distantPast
+    private var lastAttempt=Date.distantPast
+    private var quotaFlights=[NativeQuotaProvider:Task<NativeQuotaSnapshot,Error>]()
+    private var quotaKeys=[NativeQuotaProvider:String]()
+    private var quotaGenerations=[NativeQuotaProvider:UInt64]()
+    private var quotaAttempts=[NativeQuotaProvider:TimeInterval]()
     private func settings() throws -> CollectorSettings {
         let root=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("AgentUsageOffline")
         let stored=try JSONDecoder().decode(CollectorSettings.self,from:Data(contentsOf:root.appendingPathComponent("connection.json")))
@@ -27,7 +31,8 @@ actor FleetUsageDataSource: UsageDataSource {
         if let flight {return try await flight.value}
         // Always revalidate the current configuration through the collector.
         let config=try settings()
-        let sync=force || (config.autoRefresh != false && Date().timeIntervalSince(lastSync)>=300)
+        let sync=force || (config.autoRefresh != false && Date().timeIntervalSince(lastAttempt)>=(config.liveMetrics == true ? 30:300))
+        if sync {lastAttempt=Date()}
         let task=Task.detached {try sync ? LocalCollector.refreshResult(config) : LocalCollector.restoreResult(config)}
         flight=task
         defer {flight=nil}
@@ -43,7 +48,7 @@ actor FleetUsageDataSource: UsageDataSource {
             }
             throw error
         }
-        last=result;if sync {lastSync=Date()}
+        last=result
         await MainActor.run {FleetUIState.shared.accept(result)}
         return result
     }
@@ -157,7 +162,126 @@ actor FleetUsageDataSource: UsageDataSource {
     func agentsReport(year:String?,clients:[String]?,priority:TaskPriority) async throws -> AgentsReport {
         try projectAgents(await result(),year:year,clients:clients)
     }
-    func agentUsage() async throws -> AgentUsagePayload {throw FleetSourceError.unsupported}
-    func usageTrace(windowSecs:Int64) async throws -> [TraceBucket] {throw FleetSourceError.unsupported}
-    func tokensPerMin() async throws -> Double {throw FleetSourceError.unsupported}
+    func agentUsage() async throws -> AgentUsagePayload {
+        await refreshAllQuotas()
+        let now=Date(), formatter=ISO8601DateFormatter()
+        var agents=[[String:Any]]()
+        for provider in NativeQuotaProvider.allCases {
+            let (enabled,snapshot)=await MainActor.run {let state=FleetUIState.shared.quotaState(provider);return (state.quotaEnabled,state.quota)}
+            guard enabled else {continue}
+            var entry:[String:Any]=["clientId":provider.rawValue,"source":"native-cli","updatedAt":formatter.string(from:snapshot?.capturedAt ?? now),"windows":[] as [[String:Any]]]
+            if let snapshot,snapshot.remaining(at:now) != nil {
+                entry["windows"]=snapshot.windows.map { window -> [String:Any] in
+                    var value:[String:Any]=["cardId":window.id,"label":window.title,"usedPercent":window.usedPercent,"remainingPercent":window.remainingPercent]
+                    value["resetsAt"]=window.resetsAt.map{formatter.string(from:$0)}
+                    value["windowMinutes"]=window.durationMinutes
+                    return value
+                }
+            } else {entry["error"]="quota_unavailable"}
+            agents.append(entry)
+        }
+        return try decode(["generatedAt":formatter.string(from:now),"agents":agents],as:AgentUsagePayload.self)
+    }
+    func projectActivity(_ result:CollectionResult,windowSecs:Int,now:Date=Date()) throws -> LiveActivityReport {
+        let host=selectedHost()
+        switch result {
+        case .local(let s):return try LiveActivityReport(fleet:nil,snapshot:s,windowSeconds:windowSecs,now:now)
+        case .fleet(let f):return try LiveActivityReport(fleet:f,snapshot:nil,host:host,windowSeconds:windowSecs,now:now)
+        }
+    }
+    func usageTrace(windowSecs:Int64) async throws -> [TraceBucket] {
+        let config=try settings(), scope=selectedHost()
+        await MainActor.run {FleetUIState.shared.liveEnabled = config.liveMetrics == true}
+        guard config.liveMetrics == true else {
+            await MainActor.run {FleetUIState.shared.activity=nil}
+            throw FleetSourceError.unsupported
+        }
+        let report:LiveActivityReport
+        let buckets:[TraceBucket]
+        do {
+            report=try projectActivity(await result(),windowSecs:Int(windowSecs))
+            guard try settings().liveMetrics == true,selectedHost()==scope else {throw FleetSourceError.unavailable}
+            buckets=try report.clients.map {row in
+                guard let messages=Int(exactly:row.messages.known) else {throw FleetSourceError.outOfRange}
+                return TraceBucket(client:row.agent,agent:"已知调用",model:"all-models",tokens:try int(row.tokens),messages:messages,
+                                   tokensPerMin:Double(row.tokens)*60/Double(windowSecs))
+            }
+        } catch {
+            await MainActor.run {FleetUIState.shared.activity=nil}
+            throw error
+        }
+        let published=await MainActor.run {
+            let current=UserDefaults.standard.string(forKey:"agentusage.selectedHost").flatMap{$0.isEmpty ? nil:$0}
+            guard current==scope else {return false}
+            FleetUIState.shared.activity=report
+            return true
+        }
+        guard published,report.available else {throw FleetSourceError.unavailable}
+        return buckets
+    }
+    func tokensPerMin() async throws -> Double {try await usageTrace(windowSecs:600).reduce(0){$0+$1.tokensPerMin}}
+    func refreshAllQuotas(force:Bool=false) async {
+        async let codex:Void=refreshQuota(provider:.codex,force:force)
+        async let agy:Void=refreshQuota(provider:.agy,force:force)
+        _=await (codex,agy)
+    }
+    func refreshQuota(provider:NativeQuotaProvider = .codex,force:Bool=false) async {
+        let config:CollectorSettings
+        do {config=try settings()} catch {
+            await MainActor.run {FleetUIState.shared.quotaState(provider).quota=nil;FleetUIState.shared.quotaState(provider).quotaMessage="无法读取额度配置"}
+            return
+        }
+        let enabled=config.quotaEnabled(provider), executable=config.quotaExecutable(provider)
+        let key=enabled ? "enabled|"+executable : "disabled"
+        let changed=key != quotaKeys[provider]
+        if changed {
+            quotaFlights[provider]?.cancel();quotaFlights[provider]=nil;quotaKeys[provider]=key;quotaAttempts[provider] = -1000;quotaGenerations[provider,default:0] &+= 1
+        }
+        let generation=quotaGenerations[provider,default:0]
+        await MainActor.run {
+            let state=FleetUIState.shared.quotaState(provider)
+            guard generation>=state.quotaGeneration else {return}
+            state.quotaGeneration=generation;state.quotaEnabled=enabled
+            if changed {state.quota=nil;state.quotaMessage=nil;state.quotaLoading=false}
+        }
+        guard generation==quotaGenerations[provider,default:0],enabled else {return}
+        if let flight=quotaFlights[provider] {_=try? await flight.value;return}
+        let now=ProcessInfo.processInfo.systemUptime
+        guard now-(quotaAttempts[provider] ?? -1000) >= (force ? 10:60) else {return}
+        quotaAttempts[provider]=now
+        await MainActor.run {
+            let state=FleetUIState.shared.quotaState(provider)
+            guard state.quotaGeneration==generation else {return}
+            state.quota=nil;state.quotaMessage=nil;state.quotaLoading=true
+        }
+        guard generation==quotaGenerations[provider,default:0] else {return}
+        let task=Task.detached {try provider == .codex ? CodexQuota.fetch(executable:executable):AgyQuota.fetch(executable:executable)}
+        quotaFlights[provider]=task
+        do {
+            let value=try await task.value
+            let current=try settings()
+            if quotaGenerations[provider,default:0]==generation,current.quotaEnabled(provider),current.quotaExecutable(provider)==executable {
+                await MainActor.run {if FleetUIState.shared.quotaState(provider).quotaGeneration==generation {FleetUIState.shared.quotaState(provider).quota=value}}
+            }
+        } catch {
+            guard quotaGenerations[provider,default:0]==generation else {return}
+            let message:String
+            switch error {
+            case NativeQuotaError.notLoggedIn:message="尚未登录，请先在对应原生 CLI 中登录"
+            case NativeQuotaError.unsupportedAccount:message="当前账号未提供可读取的额度窗口"
+            case NativeQuotaError.timedOut:message="额度查询超时，请稍后重试"
+            case NativeQuotaError.unsupportedVersion:message="CLI 版本不支持安全的只读额度查询，请升级后重试"
+            case NativeQuotaError.launchFailed:message="无法启动原生 CLI，请检查程序路径"
+            default:message="暂时无法获取额度，请稍后重试或检查原生 CLI 登录状态"
+            }
+            await MainActor.run {
+                let state=FleetUIState.shared.quotaState(provider)
+                if state.quotaGeneration==generation {state.quota=nil;state.quotaMessage=message}
+            }
+        }
+        if quotaGenerations[provider,default:0]==generation {
+            quotaFlights[provider]=nil
+            await MainActor.run {if FleetUIState.shared.quotaState(provider).quotaGeneration==generation {FleetUIState.shared.quotaState(provider).quotaLoading=false}}
+        }
+    }
 }

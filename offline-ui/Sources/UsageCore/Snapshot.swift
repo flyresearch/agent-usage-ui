@@ -49,6 +49,7 @@ public struct SourceStatus: Codable, Identifiable, Sendable {
     public var id: String { source_id }
 }
 public struct UsageSnapshot: Codable, Sendable {
+    public let recent_activity: RecentActivity?
     public let schema_version: Int
     public let host_id: String
     public let configuration_fingerprint: String
@@ -101,6 +102,7 @@ public struct UsageSnapshot: Codable, Sendable {
             sum = try sum.adding(row.tokens)
         }
         guard sum == snapshot.totals else {throw UsageError.invalidSnapshot}
+        try snapshot.recent_activity?.validate(snapshot:snapshot)
         return snapshot
     }
     public func selected(agent: String? = nil, model: String? = nil, start: String? = nil, end: String? = nil) -> [UsageRow] {

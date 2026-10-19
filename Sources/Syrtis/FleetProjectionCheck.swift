@@ -20,7 +20,8 @@ enum FleetProjectionCheck {
             guard report.entries.count==2,report.entries.reduce(0,{$0+$1.total})==107,report.totalCacheRead==90 else {throw FleetSourceError.unavailable}
             let empty=try await source.projectGraph(.local(snapshot),year:"2025")
             guard empty.summary.totalTokens==0,empty.contributions.isEmpty else {throw FleetSourceError.unavailable}
-            do {_=try await source.tokensPerMin();throw FleetSourceError.unavailable} catch FleetSourceError.unsupported {}
+            let legacyActivity=try await source.projectActivity(.local(snapshot),windowSecs:600)
+            guard !legacyActivity.available,legacyActivity.rate==nil else {throw FleetSourceError.unavailable}
             var host:[String:Any]=["host_id":"fixture","state":"stale","included":true,"last_success_at":"2026-01-01T00:00:00Z","last_attempt_at":"2026-01-01T00:00:00Z","error":"collection_failed","snapshot":fixture]
             let envelope:[String:Any]=["schema_version":1,"kind":"fleet_snapshot","configuration_fingerprint":String(repeating:"b",count:64),"generated_at":"2026-01-01T00:00:00Z","complete":false,"coverage_complete":false,"totals":total,"hosts":[host]]
             let fleet=try FleetSnapshot.decode(JSONSerialization.data(withJSONObject:envelope))
@@ -69,9 +70,9 @@ enum FleetProjectionCheck {
             guard hiddenHours.entries.isEmpty,hiddenAgents.entries.isEmpty else {throw FleetSourceError.unavailable}
             let noYear=try await source.projectHourly(.local(a),year:"2025",clients:nil)
             guard noYear.entries.isEmpty,noYear.unallocatedTokens==0 else {throw FleetSourceError.unavailable}
-            guard AppView.visible(hiddenRaw:"hourly,agents",fleet:true)==[.overview,.models,.monthly,.daily,.stats],
+            guard AppView.visible(hiddenRaw:"hourly,agents",fleet:true)==[.overview,.quota,.models,.monthly,.daily,.stats],
                 AppView.effective(.hourly,hiddenRaw:"hourly",fleet:true) == .overview,
-                AppView.effective(.quota,hiddenRaw:"",fleet:true) == .overview,
+                AppView.effective(.quota,hiddenRaw:"",fleet:true) == .quota,
                 AppView.visible(hiddenRaw:"",fleet:true).contains(.agents) else {throw FleetSourceError.unavailable}
             var secondAnalysis=analysis;secondAnalysis["host_id"]="second-host"
             func freshHost(_ id:String,_ snap:[String:Any]) -> [String:Any] {

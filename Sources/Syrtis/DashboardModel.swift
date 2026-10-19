@@ -32,7 +32,7 @@ enum AppView: String, CaseIterable {
     /// guaranteed fallback target (see `effective`).
     static func visible(hiddenRaw: String, fleet: Bool = FleetMode.enabled) -> [AppView] {
         let hidden = ClientRegistry.parseIdSet(hiddenRaw)
-        if fleet {return allCases.filter { $0 != .quota && (!toggleable.contains($0) || !hidden.contains($0.rawValue)) }}
+        if fleet {return allCases.filter { !toggleable.contains($0) || !hidden.contains($0.rawValue) }}
         return allCases.filter { !toggleable.contains($0) || !hidden.contains($0.rawValue) }
     }
 
@@ -45,7 +45,6 @@ enum AppView: String, CaseIterable {
     /// just-hidden client tab. Guarded to `toggleable` lenses for the same
     /// tamper-resistance reason as `visible`.
     static func effective(_ view: AppView, hiddenRaw: String, fleet: Bool = FleetMode.enabled) -> AppView {
-        if fleet && view == .quota {return .overview}
         guard toggleable.contains(view) else { return view }
         return ClientRegistry.parseIdSet(hiddenRaw).contains(view.rawValue) ? .overview : view
     }
@@ -885,6 +884,7 @@ private struct DashboardSnapshot {
     /// to render, so model-dependent lenses request it afterwards through
     /// `ensureModelData(for:)`, keyed on the committed payload generation.
     func resetFleetAnalysis() {
+        if FleetMode.enabled {FleetUIState.shared.activity=nil}
         Self.invalidateScanDerivedCaches()
         invalidateHourly(); hourlyLoading = false
         agents = nil; agentsClients = nil; agentsRequest = UUID(); agentsLoading = false

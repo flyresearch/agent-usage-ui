@@ -24,7 +24,22 @@ struct FleetConnectionSettings: View {
             }
             pathField("汇总采集器", path: $draft.settings.executable, directory: false)
             Toggle("多机汇总", isOn: Binding(get: { draft.settings.fleetMode == true }, set: { draft.settings.fleetMode = $0 }))
-            Toggle("每五分钟自动采集", isOn: Binding(get: { draft.settings.autoRefresh != false }, set: { draft.settings.autoRefresh = $0 }))
+            Toggle("自动采集（常规五分钟，速率启用后约三十秒）", isOn: Binding(get: { draft.settings.autoRefresh != false }, set: { draft.settings.autoRefresh = $0 }))
+            Toggle("启用近期 tokens/min",isOn:Binding(get:{draft.settings.liveMetrics == true},set:{draft.settings.liveMetrics=$0}))
+            Text("按最近十分钟已落盘的 Token 计算平均速率，包含输入、缓存与输出；不是模型生成速度。采集失败或超过 75 秒未更新时不显示为零。")
+                .font(.caption).foregroundStyle(.secondary)
+            Toggle("启用 Codex 在线额度",isOn:Binding(get:{draft.settings.codexQuotaEnabled == true},set:{draft.settings.codexQuotaEnabled=$0}))
+            if draft.settings.codexQuotaEnabled == true {
+                pathField("Codex CLI 程序",path:Binding(get:{draft.settings.codexExecutable ?? ""},set:{draft.settings.codexExecutable=$0}),directory:false)
+                Text("独立每六十秒通过本机 Codex app-server 查询当前账号额度，不创建对话。登录与必要续期由 Codex 自己管理；本应用不读取登录票据。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Toggle("启用 Antigravity 在线额度",isOn:Binding(get:{draft.settings.agyQuotaEnabled == true},set:{draft.settings.agyQuotaEnabled=$0}))
+            if draft.settings.agyQuotaEnabled == true {
+                pathField("Antigravity CLI 程序",path:Binding(get:{draft.settings.agyExecutable ?? ""},set:{draft.settings.agyExecutable=$0}),directory:false)
+                Text("通过官方 /usage JSON 命令每六十秒查询；要求 CLI 1.1.11 或更新版本，不启动模型轮次。登录由原生 CLI 管理。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if draft.settings.fleetMode != true {
                 Text("单机模式只保留一台本机。若已添加其他机器，请先移除，或继续使用多机汇总。")
                     .font(.caption).foregroundStyle(.secondary)
@@ -201,6 +216,14 @@ struct FleetConnectionSettings: View {
                 }
                 DashboardModel.invalidateScanDerivedCaches()
                 FleetUIState.shared.fleet = nil; FleetUIState.shared.local = nil
+                FleetUIState.shared.liveEnabled=prepared.settings.liveMetrics == true
+                if prepared.settings.liveMetrics != true {FleetUIState.shared.activity=nil}
+                for provider in NativeQuotaProvider.allCases {
+                    let state=FleetUIState.shared.quotaState(provider)
+                    state.quotaEnabled=prepared.settings.quotaEnabled(provider)
+                    state.quota=nil
+                }
+                Task {await FleetUsageDataSource.shared.refreshAllQuotas(force:true)}
                 do {
                     _ = try await FleetUsageDataSource.shared.result(force: true)
                     draft = try ConfigurationEditor.load(settings: prepared.settings)

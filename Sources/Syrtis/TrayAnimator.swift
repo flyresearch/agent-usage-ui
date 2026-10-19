@@ -710,6 +710,12 @@ final class TrayAnimator {
         onQuotaUpdated?()
     }
 
+    private func invalidateFleetRate(generation:Int) {
+        guard !isStopped,generation>=lastAppliedRateGen else {return}
+        lastAppliedRateGen=generation;tokensPerMinRate=nil;load=0
+        updateAnimationSpeedIfPresented();onQuotaUpdated?()
+    }
+
     /// Poll the live rate to feed the spin speed. 30s cadence balances
     /// animation responsiveness against the rayon wakeup cost of each FFI
     /// call (the staticlib's mtime check wakes the entire rayon pool).
@@ -720,6 +726,7 @@ final class TrayAnimator {
                 let rate = try? await LiveRate.current(source: source)
                 guard let self, !Task.isCancelled else { break }
                 if let rate { self.applyRate(rate, generation: gen) }
+                else if FleetMode.enabled {self.invalidateFleetRate(generation:gen)}
                 try? await Task.sleep(for: .seconds(30))
             }
         }

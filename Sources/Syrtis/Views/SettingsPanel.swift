@@ -217,7 +217,7 @@ struct SettingsPanel: View {
                     presentSet: presentSet,
                     tabsUniverse: tabsUniverse)
             case .usageAttribution:
-                if FleetMode.enabled {Text("离线采集不提供订阅归属和在线额度")} else {usageAttributionPage()}
+                if FleetMode.enabled {Text("在线额度可在额度页查看；本地用量不推断订阅归属")} else {usageAttributionPage()}
             case .general:
                 if FleetMode.enabled {FleetConnectionSettings()} else {generalPage()}
             case .about:
@@ -278,7 +278,7 @@ struct SettingsPanel: View {
         section("Menubar title") {
             radioGroup(
                 selection: $trayModeRaw,
-                options: TrayMode.allCases.filter { !FleetMode.enabled || [.todayTokens,.totalTokens,.todayCost,.totalCost,.hidden].contains($0) }.map { ($0.rawValue, $0.label) })
+                options: TrayMode.allCases.filter { !FleetMode.enabled || [.todayTokens,.totalTokens,.todayCost,.totalCost,.tokensPerMin,.quotaLeft,.hidden].contains($0) }.map { ($0.rawValue, FleetMode.enabled && $0 == .quotaLeft ? "Codex 剩余额度" : $0.label) })
         }
 
         section("Font color") {
@@ -525,7 +525,7 @@ struct SettingsPanel: View {
         section("Overview cards") {
             let hiddenCards = ClientRegistry.parseIdSet(overviewHiddenRaw)
             VStack(spacing: 1) {
-                ForEach(OverviewCard.toggleable.filter { !FleetMode.enabled || $0 == .models }, id: \.self) { card in
+                ForEach(OverviewCard.toggleable.filter { !FleetMode.enabled || [.models,.limits,.trace].contains($0) }, id: \.self) { card in
                     HStack {
                         Text(card.label.localized)
                             .font(.caption)
@@ -554,7 +554,7 @@ struct SettingsPanel: View {
         section("View tabs") {
             let hiddenViews = ClientRegistry.parseIdSet(hiddenViewsRaw)
             VStack(spacing: 1) {
-                ForEach(AppView.toggleable.filter { !FleetMode.enabled || $0 != .quota }, id: \.self) { view in
+                ForEach(AppView.toggleable, id: \.self) { view in
                     HStack {
                         Text(view.label)
                             .font(.caption)

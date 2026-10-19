@@ -7,6 +7,13 @@ public struct CollectorSettings: Codable, Sendable {
     public var stateDirectory: String
     public var fleetMode: Bool?
     public var autoRefresh: Bool?
+    public var liveMetrics: Bool?
+    public var codexQuotaEnabled: Bool?
+    public var codexExecutable: String?
+    public var agyQuotaEnabled: Bool?
+    public var agyExecutable: String?
+    public func quotaEnabled(_ provider:NativeQuotaProvider) -> Bool {provider == .codex ? codexQuotaEnabled == true:agyQuotaEnabled == true}
+    public func quotaExecutable(_ provider:NativeQuotaProvider) -> String {provider == .codex ? codexExecutable ?? "":agyExecutable ?? ""}
     public init(executable: String, configuration: String, stateDirectory: String, fleetMode: Bool? = nil) {self.executable=executable;self.configuration=configuration;self.stateDirectory=stateDirectory;self.fleetMode=fleetMode}
 }
 public enum CollectionResult: Sendable {
@@ -98,10 +105,11 @@ public enum LocalCollector {
     }
     // Nonblocking reads keep deadline enforcement independent of EOF, including
     // a descendant that inherits stdout after the direct child exits.
-    public static func execute(_ settings:CollectorSettings,arguments:[String],timeout:TimeInterval) throws -> Data {
+    public static func execute(_ settings:CollectorSettings,arguments:[String],timeout:TimeInterval,workingDirectory:String?=nil,inheritSSHAgent:Bool=true,outputLimit:Int=64*1024*1024) throws -> Data {
         let process=Process();process.executableURL=URL(fileURLWithPath:settings.executable);process.arguments=arguments
         var environment=["HOME":NSHomeDirectory(),"TMPDIR":NSTemporaryDirectory(),"PATH":"/usr/bin:/bin"]
-        if let socket=ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {environment["SSH_AUTH_SOCK"]=socket}
+        if inheritSSHAgent,let socket=ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {environment["SSH_AUTH_SOCK"]=socket}
+        if let workingDirectory {process.currentDirectoryURL=URL(fileURLWithPath:workingDirectory)}
         process.environment=environment;process.standardInput=FileHandle.nullDevice
         let pipe=Pipe();process.standardOutput=pipe;process.standardError=FileHandle.nullDevice
         let handle=pipe.fileHandleForReading;let fd=handle.fileDescriptor
@@ -117,7 +125,7 @@ public enum LocalCollector {
             if ProcessInfo.processInfo.systemUptime-start>=max(timeout,0.05) {throw UsageError.timedOut}
             let n=Darwin.read(fd,&buffer,buffer.count)
             if n>0 {
-                guard data.count+n<=64*1024*1024 else {throw UsageError.outputTooLarge}
+                guard data.count+n<=outputLimit else {throw UsageError.outputTooLarge}
                 data.append(contentsOf:buffer.prefix(n))
             } else if n==0 {eof=true}
             else if errno != EAGAIN && errno != EINTR {throw UsageError.collectionFailed}

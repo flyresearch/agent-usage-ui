@@ -806,6 +806,7 @@ struct PopoverView: View {
                         agentUsage: model.agentUsage)
                 }
             case .quota:
+                if FleetMode.enabled {FleetQuotaSection(client:singleClient)} else {
                 VStack(spacing: 0) {  // onboarding containers carry their own gap
                     // On every tab: this lens is where the window history reads
                     // 0 / $0.00 until usage is attributed, so the offer has to be
@@ -858,6 +859,7 @@ struct PopoverView: View {
                                 points: $0, today: Format.todayKey(),
                                 days: Self.trendDays)
                         })
+                }
                 }
             case .models:
                 ModelsView(

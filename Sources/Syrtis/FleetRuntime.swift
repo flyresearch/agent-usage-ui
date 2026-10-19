@@ -3,11 +3,24 @@ import SwiftUI
 import Observation
 import UsageCore
 
+@MainActor @Observable final class NativeQuotaPresentation {
+    var quotaEnabled=false
+    var quotaLoading=false
+    var quotaGeneration:UInt64=0
+    var quota:NativeQuotaSnapshot?
+    var quotaMessage:String?
+}
+
 @MainActor @Observable final class FleetUIState {
     static let shared=FleetUIState()
     var fleet:FleetSnapshot?
     var local:UsageSnapshot?
     var error:String?
+    var liveEnabled=false
+    var activity:LiveActivityReport?
+    let codexQuota=NativeQuotaPresentation()
+    let agyQuota=NativeQuotaPresentation()
+    func quotaState(_ provider:NativeQuotaProvider) -> NativeQuotaPresentation {provider == .codex ? codexQuota:agyQuota}
     var noCurrentData:Bool {
         if let fleet {let host=UserDefaults.standard.string(forKey:"agentusage.selectedHost").flatMap{$0.isEmpty ? nil:$0};return !fleet.hasData(host:host)}
         return local==nil
@@ -23,14 +36,27 @@ import UsageCore
     private var controller:StatusItemController?
     private var animator:TrayAnimator?
     private var task:Task<Void,Never>?
+    private var quotaTask:Task<Void,Never>?
     func start() {
         UserDefaults.standard.register(defaults:[TrayAnimator.styleKey:"agent-usage"])
         let controller=StatusItemController();self.controller=controller
         if let icon=NSImage(systemSymbolName:"chart.bar.fill",accessibilityDescription:"Agent Usage") {controller.setStaticIcon(icon,isTemplate:true)}
         controller.updateTitle("今日 —")
-        let animator=TrayAnimator(controller:controller,source:FleetUsageDataSource.shared);self.animator=animator;animator.start()
+        let animator=TrayAnimator(controller:controller,source:FleetUsageDataSource.shared);self.animator=animator;controller.quotaPayloadProvider = { [weak animator] in animator?.quota };animator.start()
+        quotaTask=Task {
+            while !Task.isCancelled {
+                await FleetUsageDataSource.shared.refreshAllQuotas()
+                do {try await Task.sleep(for:.seconds(60))} catch {return}
+            }
+        }
         task=Task {
             while !Task.isCancelled {
+                if TrayMode.current == .quotaLeft {
+                    let remaining=FleetUIState.shared.codexQuota.quota?.remaining()
+                    controller.updateTitle(remaining.map{String(format:"%.0f%%",$0)} ?? "额度 —",stale:remaining == nil)
+                    do {try await Task.sleep(for:.seconds(10))} catch {return}
+                    continue
+                }
                 do {
                     let result=try await FleetUsageDataSource.shared.result()
                     let summary:MenuSummary
@@ -50,6 +76,11 @@ import UsageCore
                         let scoped=mode == .todayCost ? rows.filter{$0.day==MenuPeriod.day(Date())}:rows
                         let estimate=try FleetMetrics.catalog?.summary(scoped)
                         title=estimate?.doubleValue.map{String(format:"≈$%.2f",$0)+(estimate?.complete == true ? "":"*")} ?? "金额 —"
+                    case .tokensPerMin:
+                        if let rate=try? await LiveRate.current(source:FleetUsageDataSource.shared),rate.isFinite,rate>=0,rate<Double(UInt64.max) {
+                            title=(rate<10 ? String(format:"%.1f/m",rate):MenuSummary.compact(UInt64(rate))+"/m")+(FleetUIState.shared.activity?.complete == true ? "":"*")
+                        } else {title="速率 —"}
+                    case .quotaLeft:title="额度 —"
                     case .totalTokens:
                         let total:UInt64?
                         switch result {case .fleet(let f):total=try f.totals?.total;case .local(let s):total=try s.totals.total}
@@ -61,7 +92,7 @@ import UsageCore
                     FleetUIState.shared.error="采集失败，保留上次成功结果"
                     controller.updateTitle("用量待刷新",stale:true)
                 }
-                do {try await Task.sleep(for:.seconds(60))} catch {return}
+                do {try await Task.sleep(for:.seconds(10))} catch {return}
             }
         }
         if CommandLine.arguments.contains("--open-popover") {controller.showPopover()}

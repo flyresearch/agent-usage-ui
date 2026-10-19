@@ -49,7 +49,9 @@ struct OverviewView: View {
             // and having them here while the window history lived elsewhere
             // split one subject across two lenses. Overview keeps usage.
             ForEach(OverviewCard.visible(hiddenRaw: hiddenCardsRaw), id: \.self) { card in
-                if !FleetMode.enabled || [.chart,.models].contains(card) {self.card(card)}
+                if FleetMode.enabled && card == .limits {FleetQuotaSection(client:singleClient)}
+                else if FleetMode.enabled && card == .trace {FleetActivityCard(clientIds:clientIds)}
+                else if !FleetMode.enabled || [.chart,.models].contains(card) {self.card(card)}
             }
         }
     }
