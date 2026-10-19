@@ -61,7 +61,8 @@ extension FleetProjectionCheck {
             let rows=fleet.selected();let count=try MessageCount.total(rows)
             let cost=try PriceCatalog.bundled().summary(rows)
             guard UInt64(graph.summary.totalTokens)==(try fleet.totals?.total),models.totalMessages==Int(exactly:count.known),abs(models.totalCost-(cost.doubleValue ?? 0))<0.000001 else {throw FleetSourceError.unavailable}
-            let result:[String:Any]=["ok":true,"hosts":fleet.hosts.count,"fresh_hosts":fleet.hosts.filter{$0.state=="fresh"}.count,"message_count_available":count.known>0,"message_coverage_complete":count.complete,"cost_available":cost.usd != nil,"pricing_version":cost.version,"priced_tokens_percent":cost.totalTokens>0 ? Double(cost.pricedTokens)/Double(cost.totalTokens)*100:100]
+            let coverage = CoverageReport(fleet:fleet,snapshot:nil)
+            let result:[String:Any]=["ok":true,"coverage_diagnostics_available":coverage.available,"coverage_complete":coverage.complete,"coverage_gap_sources":coverage.sources.filter(\.hasGap).count,"hosts":fleet.hosts.count,"fresh_hosts":fleet.hosts.filter{$0.state=="fresh"}.count,"message_count_available":count.known>0,"message_coverage_complete":count.complete,"cost_available":cost.usd != nil,"pricing_version":cost.version,"priced_tokens_percent":cost.totalTokens>0 ? Double(cost.pricedTokens)/Double(cost.totalTokens)*100:100]
             print(String(data:try JSONSerialization.data(withJSONObject:result,options:.sortedKeys),encoding:.utf8)!);return 0
         } catch {print("{\"ok\":false,\"error\":\"fleet_metrics_check_failed\"}");return 1}
     }

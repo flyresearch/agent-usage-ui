@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-19
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift"]
 ---
 
 # Offline agent-usage consumer
@@ -228,3 +228,44 @@ graph and model projections consume normalized collector rows. The transition
 menu also includes the agent. Synthetic checks exercise decoding, filtering,
 metered counts and original-target projection. This change does not enable a
 source in private configurations or replace an installed application.
+
+## Source coverage and graphical configuration
+
+The original fleet header now separates collection freshness from source
+coverage. Its expandable diagnostics include sources with no metered rows,
+identify retained last-good data and failed sources, and exclude snapshots from
+obsolete configurations. Diagnostic scope is explicitly all sources/dates for
+the selected host, independent of chart client/year filters. Informational
+mirror/dedup counters are not warnings; unrecognized counters are conservative
+gaps. A complete report means no known gap, not proof of complete history.
+
+The original General settings page supports creating/importing a private
+configuration or restoring a connection backup, adding/removing local or SSH hosts, selecting local transcript
+folders or databases, and editing model aliases. Remote source files remain
+remote-owned: the UI registers their existing paths and reads `config-id` over
+SSH with batch mode and strict host-key checking. POSIX paths are quoted and
+PowerShell commands are UTF-16LE encoded. No provider credentials are read.
+
+Save creates a private immutable candidate configuration directory, validates
+local paths and duplicates, obtains configuration identities, and runs actual
+collection into an isolated test store. Remote collectors may reuse their
+existing cache; their source configurations are never written. A partial
+historical coverage result is allowed, but any failed host blocks publication.
+The former source configurations and live statistics store are untouched by
+validation. Imported and generated candidate configuration bytes are checked again before
+publication. Malformed optional fields fail import instead of silently falling
+back to defaults. A failed import preserves the prior draft and concurrency
+baseline.
+A compare-and-swap check under an editor lock fences concurrent connection edits;
+a private rollback connection is written before atomically replacing the
+app-owned connection file. The app then refreshes using the new connection and
+reports refresh failure separately from save failure. Publication returns its
+exact connection bytes for a post-save readback; a newer connection cannot be
+adopted as the old draft's concurrency baseline. Prior configuration
+revisions and rollback connections are retained, not automatically deleted.
+
+Synthetic checks cover empty/unmetered sources, stale and excluded hosts,
+unknown diagnostic fields, path overlap, unsupported imports and SSH quoting.
+The real collector integration checks candidate collection, atomic publication,
+external-edit conflicts, private file modes and failed-trial retention. These
+checks do not claim native rendering or live remote-machine qualification.

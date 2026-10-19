@@ -87,42 +87,9 @@ struct FleetStatusHeader:View {
             if let error=state.error {Text(error).font(.caption).foregroundStyle(.orange)}
             let host=selectedHost.isEmpty ? nil:selectedHost
             if let summary=try? MenuSummary(fleet:state.fleet,snapshot:state.local,host:host,period:.all),summary.unallocated>0 {Text("未分摊日期：\(summary.unallocated.formatted()) Token").font(.caption).foregroundStyle(.secondary)}
+            FleetCoverageView(report: CoverageReport(fleet:state.fleet,snapshot:state.local,host:host,refreshFailed:state.error != nil))
             Text(FleetMetrics.note(clients:clients,year:year)).font(.caption2).foregroundStyle(.secondary)
         }.padding(.horizontal,16).padding(.bottom,10)
-    }
-}
-
-struct FleetConnectionSettings:View {
-    @SyrtisState private var executable=""
-    @SyrtisState private var configuration=""
-    @SyrtisState private var fleet=true
-    @SyrtisState private var auto=true
-    @SyrtisState private var message=""
-    private var root:URL {FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("AgentUsageOffline")}
-    var body:some View {
-        VStack(alignment:.leading,spacing:14) {
-            Text("采集连接").font(.headline)
-            TextField("采集器绝对路径",text:$executable)
-            TextField("配置绝对路径",text:$configuration)
-            Toggle("多机汇总",isOn:$fleet)
-            Toggle("每五分钟自动采集",isOn:$auto)
-            Button("保存并刷新") {
-                guard executable.hasPrefix("/"),configuration.hasPrefix("/"),FileManager.default.isExecutableFile(atPath:executable) else {message="请选择有效的采集器和配置路径";return}
-                do {
-                    let old=try JSONDecoder().decode(CollectorSettings.self,from:Data(contentsOf:root.appendingPathComponent("connection.json")))
-                    var value=old;value.executable=executable;value.configuration=configuration;value.fleetMode=fleet;value.autoRefresh=auto
-                    try JSONEncoder().encode(value).write(to:root.appendingPathComponent("connection.json"),options:.atomic)
-                    try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:root.appendingPathComponent("connection.json").path)
-                    DashboardModel.invalidateScanDerivedCaches()
-                    FleetUIState.shared.fleet=nil;FleetUIState.shared.local=nil
-                    message="已保存；重新打开浮层后刷新"
-                } catch {message="保存失败，请检查本地配置"}
-            }
-            Text(message).font(.caption)
-            Text("仅调用已配置采集器，不读取模型服务凭据。金额为目录价估算；在线额度和实时速率不可用。").font(.caption).foregroundStyle(.secondary)
-        }.task {
-            if let value=try? JSONDecoder().decode(CollectorSettings.self,from:Data(contentsOf:root.appendingPathComponent("connection.json"))) {executable=value.executable;configuration=value.configuration;fleet=value.fleetMode == true;auto=value.autoRefresh != false}
-        }
     }
 }
 
