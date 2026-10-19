@@ -99,7 +99,7 @@ struct FleetStatusHeader:View {
         let state=FleetUIState.shared
         let host=UserDefaults.standard.string(forKey:"agentusage.selectedHost").flatMap{$0.isEmpty ? nil:$0}
         let rows=state.fleet?.selected(host:host) ?? state.local?.rows ?? []
-        return rows.filter {r in (clients.isEmpty || clients.contains(r.agent)) && (year==nil || r.day?.hasPrefix(year!+"-")==true)}
+        return rows.filter {r in clients.contains(r.agent) && (year==nil || r.day?.hasPrefix(year!+"-")==true)}
     }
     static func note(clients:[String],year:String?) -> String {
         guard !FleetUIState.shared.noCurrentData else {return "尚无当前配置的可用用量"}

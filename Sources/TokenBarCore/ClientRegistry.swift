@@ -87,7 +87,7 @@ public enum ClientRegistry {
     public static var allIds: [String] { entries.keys.sorted() }
 
     public static func style(_ id: String) -> ClientStyle {
-        if let entry = entries[id] {
+        if let entry = entries[id == "agy" ? "antigravity-cli" : id] {
             return ClientStyle(id: id, displayName: entry.displayName, color: entry.color)
         }
         // Fallback: title-case the id, neutral grey disc.

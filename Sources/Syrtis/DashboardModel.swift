@@ -30,9 +30,9 @@ enum AppView: String, CaseIterable {
     /// tampered raw string (e.g. a manually edited UserDefaults value)
     /// can't hide Overview or Models, since Overview must always remain the
     /// guaranteed fallback target (see `effective`).
-    static func visible(hiddenRaw: String) -> [AppView] {
+    static func visible(hiddenRaw: String, fleet: Bool = FleetMode.enabled) -> [AppView] {
         let hidden = ClientRegistry.parseIdSet(hiddenRaw)
-        if FleetMode.enabled {return [.overview,.models,.monthly,.daily]}
+        if fleet {return allCases.filter { $0 != .quota && (!toggleable.contains($0) || !hidden.contains($0.rawValue)) }}
         return allCases.filter { !toggleable.contains($0) || !hidden.contains($0.rawValue) }
     }
 
@@ -44,8 +44,8 @@ enum AppView: String, CaseIterable {
     /// defensive shape as `lensContent`'s inline `singleClient` check for a
     /// just-hidden client tab. Guarded to `toggleable` lenses for the same
     /// tamper-resistance reason as `visible`.
-    static func effective(_ view: AppView, hiddenRaw: String) -> AppView {
-        if FleetMode.enabled && ![AppView.overview,.models,.monthly,.daily].contains(view) {return .overview}
+    static func effective(_ view: AppView, hiddenRaw: String, fleet: Bool = FleetMode.enabled) -> AppView {
+        if fleet && view == .quota {return .overview}
         guard toggleable.contains(view) else { return view }
         return ClientRegistry.parseIdSet(hiddenRaw).contains(view.rawValue) ? .overview : view
     }
@@ -565,6 +565,10 @@ private struct DashboardSnapshot {
     /// nothing, or a deferred model reads as "no usage" during startup.
     private(set) var modelLoading = false
     private(set) var agents: AgentsReport?
+    private(set) var hourlyLoading = false
+    private(set) var agentsLoading = false
+    private(set) var fleetScopeVersion = 0
+    @ObservationIgnored private var agentsRequest = UUID()
     private(set) var agentUsage: AgentUsagePayload?
     /// True once the first `pollAgentUsage()` attempt has finished, whether it
     /// succeeded or not. Lets a view show a terminal state instead of waiting on
@@ -880,8 +884,15 @@ private struct DashboardSnapshot {
     /// without finishing any sooner overall. The dashboard only needs the graph
     /// to render, so model-dependent lenses request it afterwards through
     /// `ensureModelData(for:)`, keyed on the committed payload generation.
+    func resetFleetAnalysis() {
+        Self.invalidateScanDerivedCaches()
+        invalidateHourly(); hourlyLoading = false
+        agents = nil; agentsClients = nil; agentsRequest = UUID(); agentsLoading = false
+        fleetScopeVersion &+= 1
+    }
     func reloadFleetScope() async {
         guard FleetMode.enabled else {return}
+        resetFleetAnalysis()
         payload=nil;stats=nil;modelReport=nil;phase = .loading
         await reload(force:false,kind:.manual)
     }
@@ -1104,9 +1115,10 @@ private struct DashboardSnapshot {
         }
         if agents != nil {
             let captured = agentsClients
+            let scope = fleetScopeVersion
             let report = try? await source.agentsReport(
                 year: year, clients: captured.map(Array.init), priority: .userInitiated)
-            if self.year == year, self.agentsClients == captured { agents = report }
+            if self.year == year, self.agentsClients == captured, fleetScopeVersion == scope { agents = report }
         }
     }
 
@@ -1338,9 +1350,10 @@ private struct DashboardSnapshot {
             }
             if agents != nil {
                 let captured = agentsClients
+                let scope = fleetScopeVersion
                 let report = try? await source.agentsReport(
                     year: year, clients: captured.map(Array.init), priority: .utility)
-                if self.year == year, self.agentsClients == captured { agents = report }
+                if self.year == year, self.agentsClients == captured, fleetScopeVersion == scope { agents = report }
             }
         }
     }
@@ -2564,6 +2577,8 @@ private struct DashboardSnapshot {
             hourlyYear = nil
         }
         let requestToken = beginHourlyRequest()
+        hourlyLoading = true
+        defer {if hourlyRequestToken == requestToken {hourlyLoading = false}}
         let report = try? await source.hourlyReport(
             year: year, clients: clients, priority: .userInitiated)
         guard self.year == year, hourlyRequestToken == requestToken else { return }
@@ -2820,9 +2835,11 @@ private struct DashboardSnapshot {
             guard agents == nil || agentsClients != selection else { return }
             // Nil the stale report on a slice change (see the hourly case).
             if agents != nil, agentsClients != selection { agents = nil; agentsClients = selection }
+            let request = UUID(); agentsRequest = request; agentsLoading = true
+            defer {if agentsRequest == request {agentsLoading = false}}
             let report = try? await source.agentsReport(
                 year: year, clients: clients, priority: .userInitiated)
-            guard self.year == year, !Task.isCancelled else { return }
+            guard self.year == year, agentsRequest == request, !Task.isCancelled else { return }
             agents = report
             agentsClients = selection
         default:

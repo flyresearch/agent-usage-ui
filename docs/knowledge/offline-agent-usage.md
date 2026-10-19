@@ -269,3 +269,31 @@ unknown diagnostic fields, path overlap, unsupported imports and SSH quoting.
 The real collector integration checks candidate collection, atomic publication,
 external-edit conflicts, private file modes and failed-trial retention. These
 checks do not claim native rendering or live remote-machine qualification.
+
+## Offline analysis lenses
+
+Hourly, Stats and Agents are enabled in fleet mode alongside Overview, Models,
+Daily and Monthly. View hiding now applies to supported fleet lenses; Quota
+remains unavailable. Source/client/host filtering occurs before hourly or role
+aggregation. Switching host clears the lazy-analysis caches and supersedes
+in-flight reports so a previous host's hours/roles cannot remain selected.
+
+`UsageRow` accepts optional collector p2b-8 `hour` and `execution_role`. The hour
+must be 0–23 and accompany an event-timestamp day; role is restricted to main or
+subagent. Older collectors, interval summaries and conflicting event times have
+unknown hours. Hourly shows timeline and 24-hour profile plus unallocated-hour
+Token coverage, in Asia/Singapore. It never divides a day across hours.
+
+Agents groups explicit main/subagent roles and a separate unknown category,
+ranked by tokens. It does not expose private subagent names or turn counts.
+Stats ranks favorite model/busiest day by tokens, labels prices as directory
+estimates and hides subscription attribution. Unknown prices remain unavailable;
+known metered calls are not relabelled as all messages or conversation turns.
+The WorkBuddy disc uses a generic SF Symbol, not claimed official artwork; agy
+uses the existing Antigravity CLI name and icon alias.
+
+Synthetic collector regressions cover timezone boundaries, streaming/replay
+conflicts, cache reuse and old snapshots. Swift production projection checks
+cover same-hour mixed clients, hidden clients, old rows, year/host filters and
+controlled role totals. These checks do not qualify real-time trace or quota
+features, which still have no fleet data source.

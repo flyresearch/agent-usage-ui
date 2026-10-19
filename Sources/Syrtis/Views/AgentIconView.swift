@@ -32,6 +32,7 @@ struct AgentIconView: View {
     /// CLI and KiloCode are the same Kilo-Org brand.
     private static let iconAliases: [String: String] = [
         "antigravity-cli": "antigravity",
+        "agy": "antigravity",
         "kilo": "kilocode",
         "grok-bot": "grok",
     ]
@@ -149,6 +150,9 @@ struct AgentIconView: View {
                         .scaledToFit()
                         .frame(width: size * 0.64, height: size * 0.64)
                         .foregroundStyle(.white)
+                } else if clientId == "workbuddy" {
+                    Image(systemName:"person.2.fill")
+                        .font(.system(size:size*0.5,weight:.semibold)).foregroundStyle(.white)
                 } else {
                     Text(String(style.displayName.prefix(1)).uppercased())
                         .font(.system(size: size * 0.55, weight: .bold))

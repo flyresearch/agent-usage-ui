@@ -87,6 +87,15 @@ func decodeFleet(_ value:[String:Any]) throws ->FleetSnapshot {try FleetSnapshot
             try require(selected.count==1 && UsageSnapshot.total(selected).total==115)
             try require(MessageCount.total(selected)==MessageCount(known:2,complete:true))
         }
+        check("hour_role_fields_validate_and_legacy_rows_remain_unknown") {
+            var v=fixture();var rows=v["rows"] as! [[String:Any]]
+            let old=try decode(v);try require(old.rows.allSatisfy{$0.hour==nil && $0.execution_role==nil})
+            rows[0]["hour"]=8;rows[0]["execution_role"]="main";v["rows"]=rows
+            let current=try decode(v);try require(current.rows[0].hour==8 && current.rows[0].execution_role=="main")
+            for invalid in [-1,24] {rows[0]["hour"]=invalid;v["rows"]=rows;try rejects {_=try decode(v)}}
+            rows[0]["hour"]=8;rows[0]["execution_role"]="private-name";v["rows"]=rows;try rejects {_=try decode(v)}
+            rows[0]["execution_role"]="main";rows[1]["hour"]=0;v["rows"]=rows;try rejects {_=try decode(v)}
+        }
         check("filter_before_sum") {
             let s=try decode(fixture());try require(s.totals.total==137)
             try require(UsageSnapshot.total(s.selected(agent:"codex")).total==115)

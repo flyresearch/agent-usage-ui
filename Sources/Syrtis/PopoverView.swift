@@ -291,7 +291,7 @@ struct PopoverView: View {
         // "overview" (same onChange pass), which changes this task's id and
         // cancels the in-flight fetch before it commits. Self-correcting;
         // switching to effectiveView here isn't needed for correctness.
-        .task(id: "\(activeViewRaw)|\(model.year ?? "")|\(lazyClientIds.joined(separator: ","))") {
+        .task(id: "\(activeViewRaw)|\(model.year ?? "")|\(lazyClientIds.joined(separator: ","))|\(model.fleetScopeVersion)") {
             await model.ensureData(for: activeView.wrappedValue, clients: lazyClientIds)
         }
         // Model report, keyed on the COMMITTED slice rather than the requested
@@ -876,7 +876,7 @@ struct PopoverView: View {
                     colors: model.colors,
                     onExpand: { Task { await model.ensureModelColors() } })
             case .hourly:
-                HourlyView(report: model.hourlyReport(for: clientIds), clientIds: clientIds)
+                HourlyView(report: model.hourlyReport(for: clientIds), clientIds: clientIds, loading: model.hourlyLoading)
             case .stats:
                 StatsView(
                     payload: payload, clientIds: clientIds, stats: activeStats,
@@ -885,7 +885,7 @@ struct PopoverView: View {
                     year: model.year, singleClient: singleClient,
                     reportLoading: model.modelLoading)
             case .agents:
-                AgentsView(report: model.agents, clientIds: clientIds)
+                AgentsView(report: model.agents, clientIds: clientIds, loading: model.agentsLoading)
             }
         }
     }

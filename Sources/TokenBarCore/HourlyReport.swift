@@ -15,10 +15,15 @@ public struct HourlyReportEntry: Decodable, Sendable {
     public let total: Int64
     public let messageCount: Int
     public let turnCount: Int
+    public let costEstimate: Double?
+    public let messageCountComplete: Bool?
     public let cost: Double
 }
 
 public struct HourlyReport: Decodable, Sendable {
     public let entries: [HourlyReportEntry]
+    public let unallocatedTokens: Int64?
+    public let hourCoverageComplete: Bool?
+    public let costEstimate: Double?
     public let totalCost: Double
 }

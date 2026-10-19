@@ -525,7 +525,7 @@ struct SettingsPanel: View {
         section("Overview cards") {
             let hiddenCards = ClientRegistry.parseIdSet(overviewHiddenRaw)
             VStack(spacing: 1) {
-                ForEach(OverviewCard.toggleable, id: \.self) { card in
+                ForEach(OverviewCard.toggleable.filter { !FleetMode.enabled || $0 == .models }, id: \.self) { card in
                     HStack {
                         Text(card.label.localized)
                             .font(.caption)
@@ -554,7 +554,7 @@ struct SettingsPanel: View {
         section("View tabs") {
             let hiddenViews = ClientRegistry.parseIdSet(hiddenViewsRaw)
             VStack(spacing: 1) {
-                ForEach(AppView.toggleable, id: \.self) { view in
+                ForEach(AppView.toggleable.filter { !FleetMode.enabled || $0 != .quota }, id: \.self) { view in
                     HStack {
                         Text(view.label)
                             .font(.caption)

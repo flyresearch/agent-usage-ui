@@ -15,6 +15,7 @@ struct HourlyView: View {
     /// for a loaded slice — kept only as the strict all-hidden guard (an empty
     /// slice shows nothing, consistent with the other lenses/DayBars).
     var clientIds: [String] = []
+    var loading = false
 
     private enum Mode: String {
         case timeline, profile
@@ -39,6 +40,8 @@ struct HourlyView: View {
         let hour: Int
         var tokens: Int64 = 0
         var cost = 0.0
+        var priced = false
+        var recorded = false
     }
 
     private func allowed(_ e: HourlyReportEntry, _ allow: Set<String>) -> Bool {
@@ -56,6 +59,8 @@ struct HourlyView: View {
             else { continue }
             out[hh].tokens = out[hh].tokens.saturatingAdding(e.total)
             out[hh].cost += e.cost
+            out[hh].priced = out[hh].priced || e.costEstimate != nil
+            out[hh].recorded = true
         }
         return out
     }
@@ -64,7 +69,7 @@ struct HourlyView: View {
     private var timeline: [HourlyReportEntry] {
         let allow = Set(clientIds)
         return (report?.entries ?? [])
-            .filter { allowed($0, allow) && ($0.total > 0 || $0.cost > 0) }
+            .filter { allowed($0, allow) && ($0.total > 0 || $0.cost > 0 || $0.messageCount > 0) }
             .sorted { $0.hour > $1.hour }
     }
 
@@ -73,6 +78,7 @@ struct HourlyView: View {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:00"
+        if FleetMode.enabled {formatter.timeZone = TimeZone(secondsFromGMT:8*3600)}
         return formatter.string(from: Date())
     }
 
@@ -80,7 +86,7 @@ struct HourlyView: View {
         let buckets = self.buckets
         let timeline = self.timeline
         let hasData = mode == .profile
-            ? buckets.contains { $0.tokens > 0 || $0.cost > 0 }
+            ? buckets.contains { $0.recorded }
             : !timeline.isEmpty
 
         DashCard(
@@ -88,10 +94,19 @@ struct HourlyView: View {
             subtitle: subtitle(buckets: buckets, timeline: timeline, hasData: hasData),
             trailing: { modeToggle }
         ) {
+            if FleetMode.enabled, let report {
+                Text("Asia/Singapore · 按用量事件时间归小时，金额为目录价估算。")
+                    .font(.caption2).foregroundStyle(.secondary)
+                if report.hourCoverageComplete != true {
+                    Text("部分记录缺少小时信息；未分摊到小时：\((report.unallocatedTokens ?? 0).formatted()) Token。旧版本采集器和区间汇总来源不会被强行分配到某个小时。")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
+            }
             if report == nil {
-                LoadingLine(title: "Loading…")
+                if FleetMode.enabled && !loading {Text("小时数据暂不可用，请刷新。").font(.caption).foregroundStyle(.secondary)}
+                else {LoadingLine(title: "Loading…")}
             } else if !hasData {
-                Text("No usage in this range")
+                Text(FleetMode.enabled && report?.hourCoverageComplete != true ? "当前范围没有可定位到小时的用量记录" : "No usage in this range")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if mode == .profile {
@@ -100,7 +115,7 @@ struct HourlyView: View {
                     ForEach(buckets, id: \.hour) { b in
                         hourRow(
                             label: String(format: "%02d:00", b.hour),
-                            tokens: b.tokens, cost: b.cost, maxTokens: maxTokens,
+                            tokens: b.tokens, cost: b.cost, estimate: b.priced ? b.cost : nil, maxTokens: maxTokens,
                             isCurrent: false)
                     }
                 }
@@ -113,7 +128,7 @@ struct HourlyView: View {
                         hourRow(
                             // "YYYY-MM-DD HH:00" → "MM-DD HH:00"
                             label: String(e.hour.dropFirst(5)),
-                            tokens: e.total, cost: e.cost, maxTokens: maxTokens,
+                            tokens: e.total, cost: e.cost, estimate: e.costEstimate, maxTokens: maxTokens,
                             isCurrent: e.hour == now)
                     }
                 }
@@ -142,6 +157,7 @@ struct HourlyView: View {
         -> String
     {
         guard hasData else { return "—" }
+        if FleetMode.enabled {return "\(timeline.count) 个小时 · " + (report?.costEstimate.map { "≈"+Format.usd($0) } ?? "金额 —")}
         switch mode {
         case .profile:
             let peak = buckets.max { $0.tokens < $1.tokens } ?? buckets[0]
@@ -179,7 +195,7 @@ struct HourlyView: View {
     }
 
     private func hourRow(
-        label: String, tokens: Int64, cost: Double, maxTokens: Int64, isCurrent: Bool
+        label: String, tokens: Int64, cost: Double, estimate: Double?, maxTokens: Int64, isCurrent: Bool
     ) -> some View {
         HStack(spacing: 8) {
             Text(label)
@@ -200,7 +216,7 @@ struct HourlyView: View {
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 44, alignment: .trailing)
-            Text(cost > 0 ? Format.usd(cost) : "")
+            Text(FleetMode.enabled ? (estimate.map { "≈"+Format.usd($0) } ?? "—") : (cost > 0 ? Format.usd(cost) : ""))
                 .font(.caption2.monospacedDigit())
                 .frame(width: 52, alignment: .trailing)
         }

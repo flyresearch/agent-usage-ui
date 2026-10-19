@@ -71,8 +71,12 @@ actor FleetUsageDataSource: UsageDataSource {
         var contributions=[[String:Any]]()
         for day in groups.keys.sorted() {
             let rs=groups[day]!;let sum=try UsageSnapshot.total(rs);let total=try int(sum.total)
-            let clients=try rs.map {r -> [String:Any] in
-                ["client":r.agent,"modelId":r.model,"providerId":r.provider ?? "unknown","tokens":try tokens(r.tokens),"cost":try cost([r]),"messages":try messageCount([r])]
+            // Hour/role rows share a daily client/model identity. Reaggregate
+            // before projecting into the original daily UI, which expects one entry.
+            let clientGroups=Dictionary(grouping:rs) { $0.agent+"|"+$0.model+"|"+($0.provider ?? "unknown") }
+            let clients=try clientGroups.keys.sorted().map { key -> [String:Any] in
+                let rows=clientGroups[key]!, first=rows[0]
+                return ["client":first.agent,"modelId":first.model,"providerId":first.provider ?? "unknown","tokens":try tokens(UsageSnapshot.total(rows)),"cost":try cost(rows),"messages":try messageCount(rows)]
             }
             contributions.append(["date":day,"totals":["tokens":total,"cost":try cost(rs),"messages":try messageCount(rs)],"intensity":total>0 ? min(4,max(1,Int(ceil(Double(total)/Double(max(1,maximum))*4)))):0,"tokenBreakdown":try tokens(sum),"clients":clients])
         }
@@ -109,8 +113,50 @@ actor FleetUsageDataSource: UsageDataSource {
         let value=try pricing?.summary(rows).doubleValue ?? 0
         guard value.isFinite else {throw FleetSourceError.outOfRange};return value
     }
-    func hourlyReport(year:String?,clients:[String]?,priority:TaskPriority) async throws -> HourlyReport {throw FleetSourceError.unsupported}
-    func agentsReport(year:String?,clients:[String]?,priority:TaskPriority) async throws -> AgentsReport {throw FleetSourceError.unsupported}
+    private func scopedRows(_ result:CollectionResult, year:String?, clients:[String]?) throws -> [UsageRow] {
+        try rows(result,year:year).filter { row in clients.map { $0.contains(row.agent) } ?? true }
+    }
+    func projectHourly(_ result:CollectionResult, year:String?, clients:[String]?) throws -> HourlyReport {
+        let rs = try scopedRows(result,year:year,clients:clients)
+        _ = try int(UsageSnapshot.total(rs).total)
+        let allocated = rs.filter { $0.day != nil && $0.hour != nil }
+        let groups = Dictionary(grouping:allocated) { $0.day! + String(format:" %02d:00",$0.hour!) }
+        let entries = try groups.keys.sorted().map { hour -> [String:Any] in
+            let rows=groups[hour]!, t=try UsageSnapshot.total(rows), count=try MessageCount.total(rows)
+            var v=try tokens(t).mapValues { $0 as Any }
+            v["hour"]=hour;v["clients"]=Set(rows.map(\.agent)).sorted();v["models"]=Set(rows.map(\.model)).sorted()
+            v["total"]=try int(t.total);v["messageCount"]=try messageCount(rows);v["messageCountComplete"]=count.complete
+            // DTO compatibility only: the offline view never presents this as a known turn count.
+            v["turnCount"]=0;v["cost"]=try cost(rows);v["costEstimate"]=try pricing?.summary(rows).doubleValue
+            return v
+        }
+        return try decode(["entries":entries,"totalCost":try cost(allocated),
+            "costEstimate":try pricing?.summary(allocated).doubleValue as Any? ?? NSNull(),
+            "unallocatedTokens":int(UsageSnapshot.total(rs.filter{$0.hour == nil}).total),
+            "hourCoverageComplete":allocated.count == rs.count],as:HourlyReport.self)
+    }
+    func projectAgents(_ result:CollectionResult, year:String?, clients:[String]?) throws -> AgentsReport {
+        let rs=try scopedRows(result,year:year,clients:clients)
+        _ = try int(UsageSnapshot.total(rs).total)
+        let groups=Dictionary(grouping:rs) { $0.execution_role ?? "unknown" }
+        let entries=try groups.keys.sorted().map { role -> [String:Any] in
+            let rows=groups[role]!,t=try UsageSnapshot.total(rows),count=try MessageCount.total(rows)
+            var v=try tokens(t).mapValues { $0 as Any }
+            v["agent"]=role;v["clients"]=Set(rows.map(\.agent)).sorted();v["total"]=try int(t.total)
+            v["messages"]=try messageCount(rows);v["messageCountComplete"]=count.complete
+            v["cost"]=try cost(rows);v["costEstimate"]=try pricing?.summary(rows).doubleValue
+            return v
+        }
+        return try decode(["entries":entries,"totalCost":try cost(rs),"totalMessages":try messageCount(rs),
+            "costEstimate":try pricing?.summary(rs).doubleValue as Any? ?? NSNull(),
+            "unclassifiedTokens":int(UsageSnapshot.total(rs.filter{$0.execution_role == nil}).total)],as:AgentsReport.self)
+    }
+    func hourlyReport(year:String?,clients:[String]?,priority:TaskPriority) async throws -> HourlyReport {
+        try projectHourly(await result(),year:year,clients:clients)
+    }
+    func agentsReport(year:String?,clients:[String]?,priority:TaskPriority) async throws -> AgentsReport {
+        try projectAgents(await result(),year:year,clients:clients)
+    }
     func agentUsage() async throws -> AgentUsagePayload {throw FleetSourceError.unsupported}
     func usageTrace(windowSecs:Int64) async throws -> [TraceBucket] {throw FleetSourceError.unsupported}
     func tokensPerMin() async throws -> Double {throw FleetSourceError.unsupported}

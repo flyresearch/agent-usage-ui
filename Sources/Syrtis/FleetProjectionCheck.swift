@@ -46,7 +46,53 @@ enum FleetProjectionCheck {
             let wbGraph=try await source.projectGraph(.local(wb),year:nil)
             let wbModels=try await source.projectModels(.local(wb),year:nil)
             guard wbGraph.summary.clients.contains("workbuddy"),wbModels.entries.contains(where:{$0.client=="workbuddy" && $0.total==100}),wbGraph.contributions[0].totals.messages==3 else {throw FleetSourceError.unavailable}
-            print("{\"passed\":10,\"failed\":[]}");return 0
+            var analysis=fixture
+            var analysisRows=fixture["rows"] as! [[String:Any]]
+            analysisRows[0]["hour"]=8;analysisRows[0]["execution_role"]="main"
+            var child=analysisRows[0];child["agent"]="claude";child["execution_role"]="subagent"
+            var childTokens=zero;childTokens["output"]=5;child["tokens"]=childTokens
+            analysisRows.append(child);analysis["rows"]=analysisRows
+            var analysisTotal=total;analysisTotal["output"]=12;analysis["totals"]=analysisTotal
+            let a=try UsageSnapshot.decode(JSONSerialization.data(withJSONObject:analysis))
+            let hours=try await source.projectHourly(.local(a),year:nil,clients:nil)
+            guard hours.entries.count==1,hours.entries[0].total==105,hours.entries[0].hour=="2026-01-01 08:00",hours.unallocatedTokens==7,hours.hourCoverageComplete==false,hours.costEstimate==nil else {throw FleetSourceError.unavailable}
+            let codexHours=try await source.projectHourly(.local(a),year:"2026",clients:["codex"])
+            guard codexHours.entries[0].total==100,codexHours.unallocatedTokens==0,codexHours.hourCoverageComplete==true else {throw FleetSourceError.unavailable}
+            let oldHours=try await source.projectHourly(.local(snapshot),year:nil,clients:nil)
+            guard oldHours.entries.isEmpty,oldHours.unallocatedTokens==107,oldHours.hourCoverageComplete==false else {throw FleetSourceError.unavailable}
+            let roles=try await source.projectAgents(.local(a),year:nil,clients:nil)
+            guard roles.entries.count==3,roles.entries.reduce(0,{$0+$1.total})==112,roles.unclassifiedTokens==7,roles.costEstimate==nil else {throw FleetSourceError.unavailable}
+            let childRole=try await source.projectAgents(.local(a),year:nil,clients:["claude"])
+            guard childRole.entries.count==1,childRole.entries[0].agent=="subagent",childRole.entries[0].total==5 else {throw FleetSourceError.unavailable}
+            let hiddenHours=try await source.projectHourly(.local(a),year:nil,clients:[])
+            let hiddenAgents=try await source.projectAgents(.local(a),year:nil,clients:[])
+            guard hiddenHours.entries.isEmpty,hiddenAgents.entries.isEmpty else {throw FleetSourceError.unavailable}
+            let noYear=try await source.projectHourly(.local(a),year:"2025",clients:nil)
+            guard noYear.entries.isEmpty,noYear.unallocatedTokens==0 else {throw FleetSourceError.unavailable}
+            guard AppView.visible(hiddenRaw:"hourly,agents",fleet:true)==[.overview,.models,.monthly,.daily,.stats],
+                AppView.effective(.hourly,hiddenRaw:"hourly",fleet:true) == .overview,
+                AppView.effective(.quota,hiddenRaw:"",fleet:true) == .overview,
+                AppView.visible(hiddenRaw:"",fleet:true).contains(.agents) else {throw FleetSourceError.unavailable}
+            var secondAnalysis=analysis;secondAnalysis["host_id"]="second-host"
+            func freshHost(_ id:String,_ snap:[String:Any]) -> [String:Any] {
+                ["host_id":id,"state":"fresh","included":true,"last_success_at":"2026-01-01T00:00:00Z","last_attempt_at":"2026-01-01T00:00:00Z","snapshot":snap]
+            }
+            var doubled=zero;doubled["input"]=20;doubled["cache_read"]=180;doubled["output"]=24
+            let multi:[String:Any]=["schema_version":1,"kind":"fleet_snapshot","configuration_fingerprint":String(repeating:"c",count:64),"generated_at":"2026-01-01T00:00:00Z","complete":true,"coverage_complete":false,"totals":doubled,"hosts":[freshHost("fixture",analysis),freshHost("second-host",secondAnalysis)]]
+            let scopedSource=FleetUsageDataSource(selectedHost:{"fixture"})
+            let multiFleet=try FleetSnapshot.decode(JSONSerialization.data(withJSONObject:multi))
+            let scopedHours=try await scopedSource.projectHourly(.fleet(multiFleet),year:nil,clients:nil)
+            let scopedRoles=try await scopedSource.projectAgents(.fleet(multiFleet),year:nil,clients:nil)
+            guard scopedHours.entries[0].total==105,scopedRoles.entries.reduce(0,{$0+$1.total})==112 else {throw FleetSourceError.unavailable}
+            var split=analysis;var splitRows=analysisRows
+            var half=zero;half["input"]=5;half["cache_read"]=45
+            splitRows[0]["tokens"]=half;var another=splitRows[0];another["hour"]=9;splitRows.append(another);split["rows"]=splitRows
+            let splitSnapshot=try UsageSnapshot.decode(JSONSerialization.data(withJSONObject:split))
+            let splitGraph=try await source.projectGraph(.local(splitSnapshot),year:nil)
+            guard splitGraph.contributions[0].clients.count==2,
+                splitGraph.contributions[0].clients.first(where:{$0.client=="codex"})?.tokens.total==100 else {throw FleetSourceError.unavailable}
+            try await FleetAnalysisCheck.run(oldHours:hours,newHours:codexHours,oldAgents:roles,newAgents:childRole)
+            print("{\"passed\":22,\"failed\":[]}");return 0
         } catch {print("{\"passed\":0,\"failed\":[\"fleet_projection\"]}");return 1}
     }
 }
@@ -61,8 +107,12 @@ extension FleetProjectionCheck {
             let rows=fleet.selected();let count=try MessageCount.total(rows)
             let cost=try PriceCatalog.bundled().summary(rows)
             guard UInt64(graph.summary.totalTokens)==(try fleet.totals?.total),models.totalMessages==Int(exactly:count.known),abs(models.totalCost-(cost.doubleValue ?? 0))<0.000001 else {throw FleetSourceError.unavailable}
+            let hours=try await source.projectHourly(.fleet(fleet),year:nil,clients:nil)
+            let agents=try await source.projectAgents(.fleet(fleet),year:nil,clients:nil)
+            guard hours.entries.reduce(0,{$0+$1.total})+(hours.unallocatedTokens ?? 0)==graph.summary.totalTokens,
+                  agents.entries.reduce(0,{$0+$1.total})==graph.summary.totalTokens else {throw FleetSourceError.unavailable}
             let coverage = CoverageReport(fleet:fleet,snapshot:nil)
-            let result:[String:Any]=["ok":true,"coverage_diagnostics_available":coverage.available,"coverage_complete":coverage.complete,"coverage_gap_sources":coverage.sources.filter(\.hasGap).count,"hosts":fleet.hosts.count,"fresh_hosts":fleet.hosts.filter{$0.state=="fresh"}.count,"message_count_available":count.known>0,"message_coverage_complete":count.complete,"cost_available":cost.usd != nil,"pricing_version":cost.version,"priced_tokens_percent":cost.totalTokens>0 ? Double(cost.pricedTokens)/Double(cost.totalTokens)*100:100]
+            let result:[String:Any]=["ok":true,"hourly_entries":hours.entries.count,"hourly_coverage_complete":hours.hourCoverageComplete ?? false,"agent_groups":agents.entries.count,"coverage_diagnostics_available":coverage.available,"coverage_complete":coverage.complete,"coverage_gap_sources":coverage.sources.filter(\.hasGap).count,"hosts":fleet.hosts.count,"fresh_hosts":fleet.hosts.filter{$0.state=="fresh"}.count,"message_count_available":count.known>0,"message_coverage_complete":count.complete,"cost_available":cost.usd != nil,"pricing_version":cost.version,"priced_tokens_percent":cost.totalTokens>0 ? Double(cost.pricedTokens)/Double(cost.totalTokens)*100:100]
             print(String(data:try JSONSerialization.data(withJSONObject:result,options:.sortedKeys),encoding:.utf8)!);return 0
         } catch {print("{\"ok\":false,\"error\":\"fleet_metrics_check_failed\"}");return 1}
     }
