@@ -395,6 +395,7 @@ private struct MenuBarMock: View {
     @AppStorage(TrayAnimator.styleKey) private var animationStyle = "cat"
     @AppStorage(TrayAnimator.animateKey) private var animateTray = true
     @AppStorage(IconColoring.storageKey) private var iconColoringRaw = IconColoring.warningOnly.rawValue
+    @AppStorage(TrayAnimator.windowLetterKey) private var showsWindowLetter = true
     @AppStorage(TrayAnimator.quotaSourceKey) private var quotaSource = QuotaResolver.auto
 
     var body: some View {
@@ -430,7 +431,7 @@ private struct MenuBarMock: View {
                                 // Same stale rule as the menu bar and the icon
                                 // beside this title (#420).
                                 stale: mode == .quotaLeft && TrayAnimator.readingIsStale(
-                                    payload: agentUsage,
+                                    payload: FleetMode.enabled ? FleetQuotaPolicy.current(agentUsage):agentUsage,
                                     persistedSelection: quotaSource,
                                     excluding: ClientRegistry.quotaExcludedClients(),
                                     defaults: UsageDataSources.current.allowsQuotaCachePersistence
@@ -472,7 +473,7 @@ private struct MenuBarMock: View {
             ? UserDefaults.standard.object(forKey: TrayAnimator.lastRemainingKey) as? Double
             : nil
         return QuotaSelectionPolicy.resolveRemainingPercent(
-            payload: agentUsage,
+            payload: FleetMode.enabled ? FleetQuotaPolicy.current(agentUsage):agentUsage,
             persistedSelection: quotaSource,
             excluding: ClientRegistry.quotaExcludedClients(),
             cachedRemaining: cachedRemaining)
@@ -485,14 +486,20 @@ private struct MenuBarMock: View {
             let coloring = IconColoring(rawValue: iconColoringRaw) ?? .warningOnly
             // Same stale rule as the menu bar (#8), evaluated at render time.
             let stale = TrayAnimator.readingIsStale(
-                payload: agentUsage,
+                payload: FleetMode.enabled ? FleetQuotaPolicy.current(agentUsage):agentUsage,
                 persistedSelection: quotaSource,
                 excluding: ClientRegistry.quotaExcludedClients(),
                 defaults: UsageDataSources.current.allowsQuotaCachePersistence ? .standard : nil,
                 now: Date())
             Image(nsImage: TrayIcons.image(
                 style: gauge, remaining: remaining, dark: dark, coloring: coloring,
-                stale: stale))
+                stale: stale,
+                prefix: showsWindowLetter
+                    ? QuotaSelectionPolicy.resolveWindowLetter(
+                        payload: FleetMode.enabled ? FleetQuotaPolicy.current(agentUsage):agentUsage,
+                        persistedSelection: quotaSource,
+                        excluding: ClientRegistry.quotaExcludedClients())
+                    : nil))
         } else {
             let frames = PreviewFrames.frames(
                 style: animationStyle, dark: dark,

@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-19
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift"]
 ---
 
 # Offline agent-usage consumer
@@ -332,7 +332,7 @@ then uses a bounded exact-child termination fallback.
 
 The Quota lens and overview card display the local CLI's current account,
 independent of fleet host selection. Quota remaining in the menu bar is the most
-constrained Codex window, not an additive balance across models or machines.
+constrained selected window, not an additive balance across models or machines.
 The source supplies sanitized quota DTOs to the existing indicator/gauge, with
 persistent quota caching still disabled. Other providers beyond Codex, Antigravity and the Claude status-line bridge have no
 configured supported quota connector and direct users to the original product.
@@ -354,7 +354,7 @@ The process runs in a temporary directory with bounded output and timeout.
 [CLI changelog](https://www.antigravity.google/docs/changelog?tab=cli).
 
 Both provider states and configuration generations are independent. The menu-bar
-remaining percentage refers specifically to Codex; Antigravity has separate
+remaining percentage follows the selected native quota window; each provider has separate
 window cards. Direct Claude OAuth and undocumented WorkBuddy probes remain unconnected.
 
 
@@ -467,3 +467,32 @@ qualify a trend.
 `Syrtis --fleet-offline --fleet-quota-history-preview OUTPUT_DIRECTORY` renders
 the production history chart using synthetic interrupted-series data in light
 and dark appearances. It does not query providers or write the real archive.
+
+## Syrtis 2.9 alignment audit
+
+Reviewed upstream release tags `v2.8.0` (`a209487`) and `v2.9.0` (`ed3fae7`)
+against the fork's v2.7 baseline. This is selective alignment, not a merge of the
+upstream provider stack or a claim of complete product parity.
+
+| Upstream change | Fleet disposition |
+|---|---|
+| DeepSeek Harness source in 2.8 | Pending independent collector adapter and fixtures; adding an icon alone would not collect its usage. No source configuration is changed by this audit. |
+| Window-card refresh spinner and unread-tail handling in 2.8 | That upstream window-usage/attribution view is not the fleet quota card. Fleet shows its own loading, stale and missing-sample states. The upstream fix is not transplanted into an unused path. |
+| Gauge H/D/W/M window letters and preference in 2.9 | Adopted from reviewed MIT upstream commits `91c82d1`, `35ba81e`, `497981a`, retaining LICENSE attribution. Letter mapping, monospace rendering, preference, localizations and upstream regression checks are included. |
+| Native quota selection/freshness | Fleet enables the source/window picker, aligns its remaining-percent title with the same selected window as the gauge, and expires readings after 90 seconds or a passed reset. Native bridge polling remains coalesced and rate-limited; tray consumers re-read about every ten seconds. |
+
+The fleet DTO explicitly carries known provider/contract durations while marking
+legacy backend history/account binding unavailable. It does not claim that the
+independent observation archive is the upstream account-attributed history store.
+Unknown duration produces no letter. Fleet quota polling also bypasses the legacy
+Antigravity capture/binding initializer, including shared dashboard call sites.
+
+Remaining differences include DSH collection, full named-agent/session detail,
+account management and subscription attribution, cross-restart account-bound
+trend history, additional quota providers, individual client menu-bar items and
+auto-update distribution. They are not hidden behind a percentage-complete claim.
+Native window click-through acceptance remains separate from pure projection,
+selftest and offscreen rendering checks; Computer Use has reported timeouts and a ScreenCaptureKit capture failure.
+
+Primary release references: [2.8.0](https://github.com/Nanako0129/syrtis/releases/tag/v2.8.0)
+and [2.9.0](https://github.com/Nanako0129/syrtis/releases/tag/v2.9.0).

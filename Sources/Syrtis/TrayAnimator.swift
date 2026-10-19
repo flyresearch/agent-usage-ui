@@ -34,6 +34,13 @@ struct TrayAnimationCPUTestConfiguration {
 final class TrayAnimator {
     static let animateKey = "tokenbar.tray.animate"
     static let styleKey = "tokenbar.tray.animationStyle"
+    /// Whether gauge icons lead with the window-length letter (H/D/W/M).
+    /// Absent means on: the letter shipped on by default.
+    static let windowLetterKey = "tokenbar.tray.windowLetter"
+
+    static func showsWindowLetter(defaults d: UserDefaults = .standard) -> Bool {
+        d.object(forKey: windowLetterKey) as? Bool ?? true
+    }
 
     static let quotaSourceKey = "tokenbar.quota.source"
 
@@ -57,7 +64,10 @@ final class TrayAnimator {
     /// Latest snapshot returned by this poller. A newer payload accepted by a
     /// dashboard or Settings poll wins through the shared publication state.
     private var polledQuota: AgentUsagePayload?
-    var quota: AgentUsagePayload? { Self.publishedQuota(polledQuota) }
+    var quota: AgentUsagePayload? {
+        let payload=Self.publishedQuota(polledQuota)
+        return FleetMode.enabled ? FleetQuotaPolicy.current(payload):payload
+    }
 
     static func publishedQuota(_ polledQuota: AgentUsagePayload?) -> AgentUsagePayload? {
         if let polledQuota, polledQuota.publicationGeneration == nil { return polledQuota }
@@ -148,7 +158,8 @@ final class TrayAnimator {
         let tabHidden = d.string(forKey: ClientRegistry.tabHiddenKey) ?? ""
         let limitsHidden = d.string(forKey: ClientRegistry.limitsHiddenKey) ?? ""
         let pace = d.string(forKey: AnimationPace.storageKey) ?? ""
-        return [style, animate, quotaSource, lastRemaining, iconColor, tabHidden, limitsHidden, pace]
+        let letter = String(showsWindowLetter(defaults: d))
+        return [style, animate, quotaSource, lastRemaining, iconColor, tabHidden, limitsHidden, pace, letter]
             .joined(separator: "|")
     }
 
@@ -234,7 +245,8 @@ final class TrayAnimator {
     /// Whether the reading the menu bar shows is stale now: the gauge fill
     /// and, since #420, the quota title use the same answer.
     var readingIsStaleNow: Bool {
-        Self.readingIsStale(
+        if FleetMode.enabled {return quotaRemaining == nil}
+        return Self.readingIsStale(
             payload: quota,
             persistedSelection: UserDefaults.standard.string(forKey: Self.quotaSourceKey)
                 ?? QuotaResolver.auto,
@@ -256,7 +268,14 @@ final class TrayAnimator {
             TrayIcons.image(
                 style: gaugeStyle, remaining: quotaRemaining,
                 dark: controller?.isDarkAppearance ?? true,
-                coloring: coloring, stale: stale),
+                coloring: coloring, stale: stale,
+                prefix: Self.showsWindowLetter()
+                    ? QuotaSelectionPolicy.resolveWindowLetter(
+                        payload: quota,
+                        persistedSelection: UserDefaults.standard.string(forKey: Self.quotaSourceKey)
+                            ?? QuotaResolver.auto,
+                        excluding: ClientRegistry.quotaExcludedClients())
+                    : nil),
             isTemplate: false)
     }
 
@@ -280,7 +299,7 @@ final class TrayAnimator {
             payload: quota,
             persistedSelection: persistedSelection,
             excluding: ClientRegistry.quotaExcludedClients(),
-            cachedRemaining: cachedQuotaRemaining)
+            cachedRemaining: FleetMode.enabled ? nil:cachedQuotaRemaining)
     }
 
     /// Reconcile a successful payload with the scalar cache. A missing outer
@@ -632,7 +651,7 @@ final class TrayAnimator {
                 // the tray through here and nowhere else. A plain 300-second
                 // sleep meant an added account could be missing from the gauge,
                 // or a removed one still counted in it, for five minutes.
-                await ClaudeExtraRoots.RegistryChange.sleep(upTo: 300, since: registryEpoch)
+                await ClaudeExtraRoots.RegistryChange.sleep(upTo: FleetMode.enabled ? 10:300, since: registryEpoch)
             }
         }
     }
@@ -666,6 +685,7 @@ final class TrayAnimator {
         autoCapture: AntigravityAutoCapture? = nil,
         setBinding: (String?, String?) -> Void = { _ = try? TBCore.setAntigravityBinding(key: $0, marker: $1) }
     ) async -> Task<Void, Never>? {
+        guard !FleetMode.enabled else {return nil}
         let capture = autoCapture ?? .shared
         guard defaults.bool(forKey: AntigravityAutoCapture.enabledKey) else {
             setBinding(capture.currentAgyKey, capture.currentAgyMarker)

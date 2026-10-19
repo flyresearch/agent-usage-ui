@@ -167,10 +167,16 @@ actor FleetUsageDataSource: UsageDataSource {
     }
     func agentUsage() async throws -> AgentUsagePayload {
         await refreshAllQuotas()
-        let now=Date(), formatter=ISO8601DateFormatter()
+        let values=await MainActor.run {NativeQuotaProvider.allCases.map { provider in
+            let state=FleetUIState.shared.quotaState(provider)
+            return (provider,state.quotaEnabled,state.quota)
+        }}
+        return try projectQuotas(values)
+    }
+    func projectQuotas(_ values:[(NativeQuotaProvider,Bool,NativeQuotaSnapshot?)],now:Date=Date()) throws -> AgentUsagePayload {
+        let formatter=ISO8601DateFormatter()
         var agents=[[String:Any]]()
-        for provider in NativeQuotaProvider.allCases {
-            let (enabled,snapshot)=await MainActor.run {let state=FleetUIState.shared.quotaState(provider);return (state.quotaEnabled,state.quota)}
+        for (provider,enabled,snapshot) in values {
             guard enabled else {continue}
             var entry:[String:Any]=["clientId":provider.rawValue,"source":provider == .claude ? "native-statusline":"native-cli","updatedAt":formatter.string(from:snapshot?.capturedAt ?? now),"windows":[] as [[String:Any]]]
             if let snapshot,snapshot.remaining(at:now) != nil {
@@ -178,6 +184,12 @@ actor FleetUsageDataSource: UsageDataSource {
                     var value:[String:Any]=["cardId":window.id,"label":window.title,"usedPercent":window.usedPercent,"remainingPercent":window.remainingPercent]
                     value["resetsAt"]=window.resetsAt.map{formatter.string(from:$0)}
                     value["windowMinutes"]=window.durationMinutes
+                    var pace:[String:Any]=["state":"unavailable","windowKey":window.id,"completeCycles":0,"reason":"accountScope"]
+                    if let minutes=window.durationMinutes {
+                        pace["durationSeconds"]=minutes*60
+                        pace["durationSource"]=provider == .claude ? "contract":"provider"
+                    }
+                    value["paceStatus"]=pace
                     return value
                 }
             } else {entry["error"]="quota_unavailable"}

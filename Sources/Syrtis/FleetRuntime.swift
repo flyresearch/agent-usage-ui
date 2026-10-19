@@ -55,7 +55,7 @@ import UsageCore
         task=Task {
             while !Task.isCancelled {
                 if TrayMode.current == .quotaLeft {
-                    let remaining=FleetUIState.shared.codexQuota.quota?.remaining()
+                    let remaining=animator.quotaRemaining
                     controller.updateTitle(remaining.map{String(format:"%.0f%%",$0)} ?? "额度 —",stale:remaining == nil)
                     do {try await Task.sleep(for:.seconds(10))} catch {return}
                     continue

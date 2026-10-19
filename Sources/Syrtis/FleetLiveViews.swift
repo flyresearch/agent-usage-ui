@@ -72,7 +72,7 @@ struct FleetQuotaCard: View {
                 } else if state.quotaLoading {
                     ProgressView("正在查询额度…").controlSize(.small)
                 } else if let snapshot=state.quota,snapshot.fresh(at:now) {
-                    Text(provider == .claude ? "本机最近观测到的 Claude Code 会话额度；不代表独立实时查询，不跨会话或机器相加。":"本机原生 CLI 当前登录账号；不随机器筛选变化，不跨机器相加。菜单栏额度为 Codex 最紧窗口的剩余比例。")
+                    Text(provider == .claude ? "本机最近观测到的 Claude Code 会话额度；不代表独立实时查询，不跨会话或机器相加。":"本机原生 CLI 当前登录账号；不随机器筛选变化，不跨机器相加。菜单栏额度跟随设置中选择的窗口；自动模式选择剩余比例最少的窗口。")
                         .font(.caption2).foregroundStyle(.secondary)
                     if !snapshot.coverageComplete {Text("部分窗口未返回可用额度，当前仅显示已知窗口。").font(.caption).foregroundStyle(.orange)}
                     ForEach(snapshot.windows) { window in

@@ -70,6 +70,7 @@ struct SettingsPanel: View {
     @AppStorage(TrayAnimator.styleKey) private var animationStyle = "cat"
     @AppStorage(AnimationPace.storageKey) private var animationPaceRaw = AnimationPace.default.rawValue
     @AppStorage(IconColoring.storageKey) private var iconColoringRaw = IconColoring.warningOnly.rawValue
+    @AppStorage(TrayAnimator.windowLetterKey) private var showsWindowLetter = true
     @AppStorage(TrayAnimator.quotaSourceKey) private var quotaSource = QuotaResolver.auto
     @AppStorage(ClientTray.enabledKey) private var individualEnabledRaw = ""
     @AppStorage(ClientTray.selectionsKey) private var individualSelectionsRaw = "{}"
@@ -278,7 +279,7 @@ struct SettingsPanel: View {
         section("Menubar title") {
             radioGroup(
                 selection: $trayModeRaw,
-                options: TrayMode.allCases.filter { !FleetMode.enabled || [.todayTokens,.totalTokens,.todayCost,.totalCost,.tokensPerMin,.quotaLeft,.hidden].contains($0) }.map { ($0.rawValue, FleetMode.enabled && $0 == .quotaLeft ? "Codex 剩余额度" : $0.label) })
+                options: TrayMode.allCases.filter { !FleetMode.enabled || [.todayTokens,.totalTokens,.todayCost,.totalCost,.tokensPerMin,.quotaLeft,.hidden].contains($0) }.map { ($0.rawValue, $0.label) })
         }
 
         section("Font color") {
@@ -323,6 +324,8 @@ struct SettingsPanel: View {
                     selection: $iconColoringRaw,
                     options: IconColoring.allCases.map { ($0.rawValue, $0.label) })
                 hint("Gauge icons empty as quota is used. \"Color on warning only\" keeps one color until 25% is left, then amber, and red at 10%.")
+                toggleRow("Show window length letter", isOn: $showsWindowLetter)
+                hint("A letter before the gauge names the window it follows: H for 5 hours, D for a day, W for a week, M for a month. No letter while the window's length is unknown.")
             }
         }
 
@@ -1378,7 +1381,7 @@ struct SettingsPanel: View {
     // MARK: - Building blocks
 
     @ViewBuilder private func section(_ label: String, @ViewBuilder content: () -> some View) -> some View {
-        if !FleetMode.enabled || !["Quota source","Individual items","Agent limits","Live trace"].contains(label) {VStack(alignment: .leading, spacing: 6) {
+        if !FleetMode.enabled || !["Individual items","Agent limits","Live trace"].contains(label) {VStack(alignment: .leading, spacing: 6) {
             Text(label.localized.uppercased())
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.tertiary)

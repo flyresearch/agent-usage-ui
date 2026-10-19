@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import AppKit
 import UsageCore
+import TokenBarCore
 
 /// Synthetic checks call the same projection used by the original Syrtis views.
 enum FleetProjectionCheck {
@@ -95,7 +96,8 @@ enum FleetProjectionCheck {
             guard splitGraph.contributions[0].clients.count==2,
                 splitGraph.contributions[0].clients.first(where:{$0.client=="codex"})?.tokens.total==100 else {throw FleetSourceError.unavailable}
             try await FleetAnalysisCheck.run(oldHours:hours,newHours:codexHours,oldAgents:roles,newAgents:childRole)
-            print("{\"passed\":22,\"failed\":[]}");return 0
+            try await checkNativeQuota(source)
+            print("{\"passed\":27,\"failed\":[]}");return 0
         } catch {print("{\"passed\":0,\"failed\":[\"fleet_projection\"]}");return 1}
     }
 }
@@ -168,5 +170,36 @@ extension FleetProjectionCheck {
             }
             return 0
         } catch {return 1}
+    }
+}
+
+
+extension FleetProjectionCheck {
+    static func checkNativeQuota(_ source:FleetUsageDataSource) async throws {
+        let now=Date(timeIntervalSince1970:1767225600)
+        func native(_ used:Double,_ minutes:Int?) throws -> NativeQuotaSnapshot {
+            var row:[String:Any]=["usedPercent":used,"resetsAt":1767225660]
+            if let minutes {row["windowDurationMins"]=minutes}
+            return try CodexQuota.decodeLimits(JSONSerialization.data(withJSONObject:["rateLimits":["primary":row]]),now:now)
+        }
+        let codex=try native(50,300),claude=try native(70,10080)
+        let payload=try await source.projectQuotas([(.codex,true,codex),(.claude,true,claude)],now:now)
+        guard payload.agents[0].windows[0].durationSeconds==18000,
+              payload.agents[0].windows[0].paceStatus.historyKey==nil else {throw FleetSourceError.unavailable}
+        let current=FleetQuotaPolicy.current(payload,now:now)
+        guard QuotaSelectionPolicy.resolveWindowLetter(payload:current,persistedSelection:QuotaResolver.auto,excluding:[])=="W",
+              QuotaSelectionPolicy.resolveRemainingPercent(payload:current,persistedSelection:QuotaResolver.auto,excluding:[],cachedRemaining:nil)==30 else {throw FleetSourceError.unavailable}
+        let explicit=QuotaResolver.selection(clientId:"codex",cardId:payload.agents[0].windows[0].cardId)
+        guard QuotaSelectionPolicy.resolveWindowLetter(payload:current,persistedSelection:explicit,excluding:[])=="H" else {throw FleetSourceError.unavailable}
+        for time in [now.addingTimeInterval(61),now.addingTimeInterval(91),now.addingTimeInterval(-6)] {
+            guard FleetQuotaPolicy.current(payload,now:time)?.agents.isEmpty==true else {throw FleetSourceError.unavailable}
+        }
+        let aged=NativeQuotaSnapshot(capturedAt:now.addingTimeInterval(-60),windows:codex.windows)
+        let mixed=try await source.projectQuotas([(.codex,true,aged),(.claude,true,claude)],now:now)
+        let filtered=FleetQuotaPolicy.current(mixed,now:now.addingTimeInterval(31))
+        guard filtered?.agents.count==1,filtered?.agents.first?.clientId=="claude",
+              QuotaSelectionPolicy.resolveRemainingPercent(payload:filtered,persistedSelection:explicit,excluding:[],cachedRemaining:50)==nil else {throw FleetSourceError.unavailable}
+        let unknown=try await source.projectQuotas([(.agy,true,native(20,nil))],now:now)
+        guard QuotaSelectionPolicy.resolveWindowLetter(payload:unknown,persistedSelection:QuotaResolver.auto,excluding:[])==nil else {throw FleetSourceError.unavailable}
     }
 }
