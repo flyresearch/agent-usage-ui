@@ -1,4 +1,6 @@
 import Foundation
+import SwiftUI
+import AppKit
 import UsageCore
 
 /// Synthetic checks call the same projection used by the original Syrtis views.
@@ -116,5 +118,29 @@ extension FleetProjectionCheck {
             let result:[String:Any]=["ok":true,"hourly_entries":hours.entries.count,"hourly_coverage_complete":hours.hourCoverageComplete ?? false,"agent_groups":agents.entries.count,"coverage_diagnostics_available":coverage.available,"coverage_complete":coverage.complete,"coverage_gap_sources":coverage.sources.filter(\.hasGap).count,"hosts":fleet.hosts.count,"fresh_hosts":fleet.hosts.filter{$0.state=="fresh"}.count,"message_count_available":count.known>0,"message_coverage_complete":count.complete,"cost_available":cost.usd != nil,"pricing_version":cost.version,"priced_tokens_percent":cost.totalTokens>0 ? Double(cost.pricedTokens)/Double(cost.totalTokens)*100:100]
             print(String(data:try JSONSerialization.data(withJSONObject:result,options:.sortedKeys),encoding:.utf8)!);return 0
         } catch {print("{\"ok\":false,\"error\":\"fleet_metrics_check_failed\"}");return 1}
+    }
+}
+
+
+extension FleetProjectionCheck {
+    /// Render the production selector with synthetic IDs, without launching the
+    /// app runtime or reading provider snapshots. Useful for visual layout QA.
+    @MainActor static func renderSources(directory:String) -> Int32 {
+        let clients=["agy","codex","claude","hermes","openclaw","workbuddy"]
+        do {
+            for dark in [false,true] {
+                for selected in ["overview","claude"] {
+                    let view=DashboardTabs(clients:clients,presentClients:clients,active:.constant(selected))
+                        .padding(12).frame(width:PopoverChrome.width)
+                        .background(dark ? Color(red:0.13,green:0.13,blue:0.14):Color(red:0.96,green:0.96,blue:0.97))
+                        .environment(\.colorScheme,dark ? .dark:.light)
+                    let renderer=ImageRenderer(content:view);renderer.scale=2
+                    guard let image=renderer.cgImage,
+                          let data=NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:]) else {return 1}
+                    try data.write(to:URL(fileURLWithPath:directory).appendingPathComponent("sources-\(dark ? "dark":"light")-\(selected).png"))
+                }
+            }
+            return 0
+        } catch {return 1}
     }
 }

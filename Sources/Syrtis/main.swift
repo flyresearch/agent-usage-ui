@@ -4,6 +4,11 @@ import AppKit
 // `--selftest` runs the TokenBarCore logic checks; anything else boots the
 // menu-bar app (no storyboard, no .app bundle yet).
 
+if let index=CommandLine.arguments.firstIndex(of:"--fleet-source-preview"),CommandLine.arguments.count>index+1 {
+    let path=CommandLine.arguments[index+1]
+    Task { @MainActor in exit(FleetProjectionCheck.renderSources(directory:path)) }
+    dispatchMain()
+}
 if let index=CommandLine.arguments.firstIndex(of:"--fleet-report-check"),CommandLine.arguments.count>index+1 {
     let path=CommandLine.arguments[index+1]
     Task {exit(await FleetProjectionCheck.runFile(path))}

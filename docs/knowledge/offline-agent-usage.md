@@ -408,8 +408,19 @@ of a current subscription quota.
 
 ## Mouse-friendly client tabs
 
-Fleet client tabs use the existing wrapping `FlowLayout`, so every visible
-client is directly clickable without horizontal scrolling. Overview stays first.
+Fleet source selection is a separate, labelled panel above the analysis lenses.
+The fixed All Agents action replaces the ambiguous source-level Overview label.
+Clients occupy a three-column grid with equal 34-point-high hit targets, stable
+icon and checkmark positions, and separate hover/pressed/selected states. A
+checkmark and border communicate selection in addition to accent color.
+Antigravity uses a compact visible label and retains its full accessible label
+and tooltip. Command-number shortcuts retain their existing order.
+
 Right-clicking a client offers move-before/move-after actions in the shared tab
 order, preserving hidden clients through the existing reorder implementation.
-The fleet row has no drag gesture competing with clicks or scroll gestures.
+The fleet panel has no horizontal scrolling or drag gesture competing with clicks.
+
+`Syrtis --fleet-offline --fleet-source-preview OUTPUT_DIRECTORY` renders the
+production selector at the actual popover width, using synthetic client IDs in
+light/dark appearances and all/single selection states. This does not start the
+fleet runtime or read account data. Rendered artifacts remain outside Git.
