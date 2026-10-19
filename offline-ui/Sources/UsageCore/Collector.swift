@@ -12,8 +12,10 @@ public struct CollectorSettings: Codable, Sendable {
     public var codexExecutable: String?
     public var agyQuotaEnabled: Bool?
     public var agyExecutable: String?
-    public func quotaEnabled(_ provider:NativeQuotaProvider) -> Bool {provider == .codex ? codexQuotaEnabled == true:agyQuotaEnabled == true}
-    public func quotaExecutable(_ provider:NativeQuotaProvider) -> String {provider == .codex ? codexExecutable ?? "":agyExecutable ?? ""}
+    public var claudeQuotaEnabled: Bool?
+    public var claudeQuotaSnapshot: String?
+    public func quotaEnabled(_ provider:NativeQuotaProvider) -> Bool {provider == .codex ? codexQuotaEnabled == true:provider == .agy ? agyQuotaEnabled == true:claudeQuotaEnabled == true}
+    public func quotaExecutable(_ provider:NativeQuotaProvider) -> String {provider == .codex ? codexExecutable ?? "":provider == .agy ? agyExecutable ?? "":claudeQuotaSnapshot ?? ""}
     public init(executable: String, configuration: String, stateDirectory: String, fleetMode: Bool? = nil) {self.executable=executable;self.configuration=configuration;self.stateDirectory=stateDirectory;self.fleetMode=fleetMode}
 }
 public enum CollectionResult: Sendable {

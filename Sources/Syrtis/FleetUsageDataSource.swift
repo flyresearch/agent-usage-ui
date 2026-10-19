@@ -169,7 +169,7 @@ actor FleetUsageDataSource: UsageDataSource {
         for provider in NativeQuotaProvider.allCases {
             let (enabled,snapshot)=await MainActor.run {let state=FleetUIState.shared.quotaState(provider);return (state.quotaEnabled,state.quota)}
             guard enabled else {continue}
-            var entry:[String:Any]=["clientId":provider.rawValue,"source":"native-cli","updatedAt":formatter.string(from:snapshot?.capturedAt ?? now),"windows":[] as [[String:Any]]]
+            var entry:[String:Any]=["clientId":provider.rawValue,"source":provider == .claude ? "native-statusline":"native-cli","updatedAt":formatter.string(from:snapshot?.capturedAt ?? now),"windows":[] as [[String:Any]]]
             if let snapshot,snapshot.remaining(at:now) != nil {
                 entry["windows"]=snapshot.windows.map { window -> [String:Any] in
                     var value:[String:Any]=["cardId":window.id,"label":window.title,"usedPercent":window.usedPercent,"remainingPercent":window.remainingPercent]
@@ -223,7 +223,8 @@ actor FleetUsageDataSource: UsageDataSource {
     func refreshAllQuotas(force:Bool=false) async {
         async let codex:Void=refreshQuota(provider:.codex,force:force)
         async let agy:Void=refreshQuota(provider:.agy,force:force)
-        _=await (codex,agy)
+        async let claude:Void=refreshQuota(provider:.claude,force:force)
+        _=await (codex,agy,claude)
     }
     func refreshQuota(provider:NativeQuotaProvider = .codex,force:Bool=false) async {
         let config:CollectorSettings
@@ -247,7 +248,7 @@ actor FleetUsageDataSource: UsageDataSource {
         guard generation==quotaGenerations[provider,default:0],enabled else {return}
         if let flight=quotaFlights[provider] {_=try? await flight.value;return}
         let now=ProcessInfo.processInfo.systemUptime
-        guard now-(quotaAttempts[provider] ?? -1000) >= (force ? 10:60) else {return}
+        guard now-(quotaAttempts[provider] ?? -1000) >= (provider == .claude ? (force ? 1:10):(force ? 10:60)) else {return}
         quotaAttempts[provider]=now
         await MainActor.run {
             let state=FleetUIState.shared.quotaState(provider)
@@ -255,7 +256,13 @@ actor FleetUsageDataSource: UsageDataSource {
             state.quota=nil;state.quotaMessage=nil;state.quotaLoading=true
         }
         guard generation==quotaGenerations[provider,default:0] else {return}
-        let task=Task.detached {try provider == .codex ? CodexQuota.fetch(executable:executable):AgyQuota.fetch(executable:executable)}
+        let task=Task.detached {
+            switch provider {
+            case .codex:return try CodexQuota.fetch(executable:executable)
+            case .agy:return try AgyQuota.fetch(executable:executable)
+            case .claude:return try ClaudeQuota.fetch(path:executable)
+            }
+        }
         quotaFlights[provider]=task
         do {
             let value=try await task.value
@@ -267,12 +274,14 @@ actor FleetUsageDataSource: UsageDataSource {
             guard quotaGenerations[provider,default:0]==generation else {return}
             let message:String
             switch error {
+            case NativeQuotaError.missingSample:message="等待 Claude Code 会话提供额度；需在订阅会话首次响应后获取"
+            case NativeQuotaError.staleSample:message="Claude 会话额度样本已过期；等待新的会话观测"
             case NativeQuotaError.notLoggedIn:message="尚未登录，请先在对应原生 CLI 中登录"
             case NativeQuotaError.unsupportedAccount:message="当前账号未提供可读取的额度窗口"
             case NativeQuotaError.timedOut:message="额度查询超时，请稍后重试"
             case NativeQuotaError.unsupportedVersion:message="CLI 版本不支持安全的只读额度查询，请升级后重试"
             case NativeQuotaError.launchFailed:message="无法启动原生 CLI，请检查程序路径"
-            default:message="暂时无法获取额度，请稍后重试或检查原生 CLI 登录状态"
+            default:message=provider == .claude ? "无法读取 Claude 额度快照，请检查状态栏桥接配置":"暂时无法获取额度，请稍后重试或检查原生 CLI 登录状态"
             }
             await MainActor.run {
                 let state=FleetUIState.shared.quotaState(provider)

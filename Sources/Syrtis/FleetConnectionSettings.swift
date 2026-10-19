@@ -40,6 +40,12 @@ struct FleetConnectionSettings: View {
                 Text("通过官方 /usage JSON 命令每六十秒查询；要求 CLI 1.1.11 或更新版本，不启动模型轮次。登录由原生 CLI 管理。")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Toggle("启用 Claude 会话额度",isOn:Binding(get:{draft.settings.claudeQuotaEnabled == true},set:{draft.settings.claudeQuotaEnabled=$0}))
+            if draft.settings.claudeQuotaEnabled == true {
+                pathField("Claude 额度快照",path:Binding(get:{draft.settings.claudeQuotaSnapshot ?? ""},set:{draft.settings.claudeQuotaSnapshot=$0}),directory:false)
+                Text("由 Claude Code 状态栏桥接生成；约每十秒读取本地快照，不主动请求模型或额度服务。需订阅会话首次响应，超过九十秒未有新观测即过期。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if draft.settings.fleetMode != true {
                 Text("单机模式只保留一台本机。若已添加其他机器，请先移除，或继续使用多机汇总。")
                     .font(.caption).foregroundStyle(.secondary)

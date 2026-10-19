@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-19
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py"]
 ---
 
 # Offline agent-usage consumer
@@ -334,7 +334,7 @@ The Quota lens and overview card display the local CLI's current account,
 independent of fleet host selection. Quota remaining in the menu bar is the most
 constrained Codex window, not an additive balance across models or machines.
 The source supplies sanitized quota DTOs to the existing indicator/gauge, with
-persistent quota caching still disabled. Other providers beyond Codex and Antigravity currently have no
+persistent quota caching still disabled. Other providers beyond Codex, Antigravity and the Claude status-line bridge have no
 configured supported quota connector and direct users to the original product.
 
 Official protocol: [Codex App Server](https://learn.chatgpt.com/docs/app-server).
@@ -355,4 +355,52 @@ The process runs in a temporary directory with bounded output and timeout.
 
 Both provider states and configuration generations are independent. The menu-bar
 remaining percentage refers specifically to Codex; Antigravity has separate
-window cards. Claude OAuth and undocumented WorkBuddy probes remain unconnected.
+window cards. Direct Claude OAuth and undocumented WorkBuddy probes remain unconnected.
+
+
+## Claude Code subscription quota via statusLine
+
+The official [status-line interface](https://code.claude.com/docs/en/statusline#rate-limit-usage)
+provides Pro/Max five-hour and seven-day usage percentages and reset times after
+the session's first API response. Each window can be absent. This integration
+receives those fields locally; it does not read credentials, start a model turn,
+read transcripts, or call a private provider endpoint.
+
+Install the independently implemented bridge with explicit private locations:
+
+```sh
+python3 scripts/claude-statusline-bridge.py --install \
+  --settings "$CLAUDE_SETTINGS" --directory "$PRIVATE_BRIDGE_DIR"
+```
+
+The settings parent must exist. The installer backs up the original settings,
+preserves other fields and status-line options, and forwards the original
+command with its stdin, stdout, stderr, working directory, environment and exit
+status. Reinstalling is idempotent; a changed status-line configuration is refused.
+The script and forwarding configuration stay in the private bridge directory.
+Only sanitized window data is published in `quota.json`; a private bounded
+replay index contains hashes, never session IDs or raw status-line payloads.
+
+Enable `claudeQuotaEnabled` and select that `quota.json` through the connection
+settings (`claudeQuotaSnapshot`). The UI reads it approximately every ten seconds, independently
+of historical collection. The card explicitly describes the latest observed
+Claude session; no account identity is inferred and no quotas are summed.
+It is unavailable before the first usable callback and after 90 seconds without
+a new observation. Passed reset times also invalidate remaining percentages.
+Unchanged timer callbacks, including alternating callbacks from different
+sessions, do not renew freshness. A change in native cumulative API duration or
+quota fields establishes a new observation; this is not independent polling of
+the provider. Invalid or missing quota data never becomes a zero balance.
+
+The bridge preserves up to 4096 session fingerprints and fails closed beyond that
+bound. To reset this private replay index, stop Claude sessions first and remove
+`replay.json` and `quota.json` together. To remove the integration, restore only
+`statusLine` from the private `forward.json` original object (remove the field if
+it was absent), preserving unrelated settings changes, and disable the UI toggle.
+Do not restore the entire settings backup over newer unrelated preferences.
+
+Verification uses `python3 scripts/test_claude_statusline_bridge.py`, the Swift
+UsageCore checks and fleet projection checks. Synthetic payloads stay in temporary
+directories and are never injected into the real status-line bridge. Live
+acceptance requires an actual Claude callback; installation alone is not evidence
+of a current subscription quota.

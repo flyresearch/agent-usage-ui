@@ -50,7 +50,8 @@ struct FleetQuotaSection: View {
     var body:some View {
         if client == nil || client == "codex" {FleetQuotaCard(provider:.codex)}
         if client == nil || client == "agy" {FleetQuotaCard(provider:.agy)}
-        if let client,client != "codex",client != "agy" {
+        if client == nil || client == "claude" {FleetQuotaCard(provider:.claude)}
+        if let client,client != "codex",client != "agy",client != "claude" {
             DashCard("在线额度") {Text("此 Agent 尚未接入官方额度接口，请在原应用查看。").font(.caption).foregroundStyle(.secondary)}
         }
     }
@@ -66,11 +67,11 @@ struct FleetQuotaCard: View {
         DashCard(provider.title+" 在线额度") {
             VStack(alignment:.leading,spacing:10) {
                 if !state.quotaEnabled {
-                    Text("在设置中启用在线额度，并选择已登录的 "+provider.title+" 程序。").font(.caption).foregroundStyle(.secondary)
+                    Text(provider == .claude ? "在设置中启用 Claude 会话额度，并配置状态栏桥接快照。":"在设置中启用在线额度，并选择已登录的 "+provider.title+" 程序。").font(.caption).foregroundStyle(.secondary)
                 } else if state.quotaLoading {
                     ProgressView("正在查询额度…").controlSize(.small)
                 } else if let snapshot=state.quota,snapshot.fresh(at:now) {
-                    Text("本机原生 CLI 当前登录账号；不随机器筛选变化，不跨机器相加。菜单栏额度为 Codex 最紧窗口的剩余比例。")
+                    Text(provider == .claude ? "本机最近观测到的 Claude Code 会话额度；不代表独立实时查询，不跨会话或机器相加。":"本机原生 CLI 当前登录账号；不随机器筛选变化，不跨机器相加。菜单栏额度为 Codex 最紧窗口的剩余比例。")
                         .font(.caption2).foregroundStyle(.secondary)
                     if !snapshot.coverageComplete {Text("部分窗口未返回可用额度，当前仅显示已知窗口。").font(.caption).foregroundStyle(.orange)}
                     ForEach(snapshot.windows) { window in
@@ -87,15 +88,15 @@ struct FleetQuotaCard: View {
                                 .font(.caption2).foregroundStyle(.secondary)
                         }
                     }
-                    Text("查询时间："+snapshot.capturedAt.formatted(date:.omitted,time:.standard)).font(.caption2).foregroundStyle(.secondary)
+                    Text((provider == .claude ? "观测时间：":"查询时间：")+snapshot.capturedAt.formatted(date:.omitted,time:.standard)).font(.caption2).foregroundStyle(.secondary)
                 } else {
                     Text(state.quotaMessage ?? "额度数据已过期或尚未获取，请刷新。")
                         .font(.caption).foregroundStyle(.orange)
                 }
                 Group {
-                    Button("刷新额度") {Task {await FleetUsageDataSource.shared.refreshQuota(provider:provider,force:true)}}
+                    Button(provider == .claude ? "重新读取快照":"刷新额度") {Task {await FleetUsageDataSource.shared.refreshQuota(provider:provider,force:true)}}
                         .disabled(!state.quotaEnabled || state.quotaLoading)
-                    Text("仅通过原生 CLI 的官方只读接口查询；不创建模型轮次，不保存登录票据。")
+                    Text(provider == .claude ? "读取官方 statusLine 输出的额度字段；首次会话响应后才可能提供。重复回调不会延长有效期，不读取登录票据。":"仅通过原生 CLI 的官方只读接口查询；不创建模型轮次，不保存登录票据。")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
             }

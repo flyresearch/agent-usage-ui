@@ -93,7 +93,7 @@ public enum ConfigurationEditor {
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw ConfigurationEditError.invalid }
         var settings = current
         if object["executable"] != nil || object["stateDirectory"] != nil {
-            guard Set(object.keys).isSubset(of: ["executable", "configuration", "stateDirectory", "fleetMode", "autoRefresh", "liveMetrics", "codexQuotaEnabled", "codexExecutable", "agyQuotaEnabled", "agyExecutable"]) else { throw ConfigurationEditError.invalid }
+            guard Set(object.keys).isSubset(of: ["executable", "configuration", "stateDirectory", "fleetMode", "autoRefresh", "liveMetrics", "codexQuotaEnabled", "codexExecutable", "agyQuotaEnabled", "agyExecutable", "claudeQuotaEnabled", "claudeQuotaSnapshot"]) else { throw ConfigurationEditError.invalid }
             settings = try JSONDecoder().decode(CollectorSettings.self, from: data)
         } else {
             settings.configuration = url.path
@@ -169,6 +169,9 @@ public enum ConfigurationEditor {
         }
         if draft.settings.agyQuotaEnabled == true {
             guard let executable=draft.settings.agyExecutable,executable.hasPrefix("/"),FileManager.default.isExecutableFile(atPath:executable) else {throw ConfigurationEditError.invalid}
+        }
+        if draft.settings.claudeQuotaEnabled == true {
+            guard let path=draft.settings.claudeQuotaSnapshot,validPath(path),path.hasPrefix("/") else {throw ConfigurationEditError.invalid}
         }
         for host in draft.hosts {
             guard label(host.name), validPath(host.executable) else { throw ConfigurationEditError.invalid }

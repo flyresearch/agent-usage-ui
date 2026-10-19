@@ -20,7 +20,8 @@ import UsageCore
     var activity:LiveActivityReport?
     let codexQuota=NativeQuotaPresentation()
     let agyQuota=NativeQuotaPresentation()
-    func quotaState(_ provider:NativeQuotaProvider) -> NativeQuotaPresentation {provider == .codex ? codexQuota:agyQuota}
+    let claudeQuota=NativeQuotaPresentation()
+    func quotaState(_ provider:NativeQuotaProvider) -> NativeQuotaPresentation {provider == .codex ? codexQuota:provider == .agy ? agyQuota:claudeQuota}
     var noCurrentData:Bool {
         if let fleet {let host=UserDefaults.standard.string(forKey:"agentusage.selectedHost").flatMap{$0.isEmpty ? nil:$0};return !fleet.hasData(host:host)}
         return local==nil
@@ -46,7 +47,7 @@ import UsageCore
         quotaTask=Task {
             while !Task.isCancelled {
                 await FleetUsageDataSource.shared.refreshAllQuotas()
-                do {try await Task.sleep(for:.seconds(60))} catch {return}
+                do {try await Task.sleep(for:.seconds(10))} catch {return}
             }
         }
         task=Task {

@@ -107,6 +107,40 @@ func liveChecks(_ check:(String,() throws -> Void)->Void) {
         invalid["remaining_fraction"]=0.5
         try rejects {_=try AgyQuota.decode(response([bucket,invalid]),now:now)}
     }
+    check("claude_statusline_snapshot_freshness_missing_and_partial") {
+        let row:[String:Any]=["window":"five_hour","used_percentage":0,"resets_at":1767230000]
+        func payload(_ rows:[[String:Any]],captured:Double=1767225600) throws -> Data {
+            try JSONSerialization.data(withJSONObject:["schema_version":1,"captured_at":captured,"windows":rows])
+        }
+        let partial=try ClaudeQuota.decode(payload([row]),now:now)
+        try require(partial.windows[0].remainingPercent==100 && !partial.coverageComplete)
+        var week=row;week["window"]="seven_day";week["used_percentage"]=100
+        let full=try ClaudeQuota.decode(payload([row,week]),now:now)
+        try require(full.coverageComplete && full.remaining(at:now)==0)
+        for rows in [[],[row,row]] {try rejects {_=try ClaudeQuota.decode(payload(rows),now:now)}}
+        try rejects {_=try ClaudeQuota.decode(payload([row],captured:1767225509),now:now)}
+        try rejects {_=try ClaudeQuota.decode(payload([row],captured:1767225606),now:now)}
+        var invalid=row;invalid["used_percentage"]=true
+        try rejects {_=try ClaudeQuota.decode(payload([invalid]),now:now)}
+        let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at:dir,withIntermediateDirectories:true)
+        defer {try? FileManager.default.removeItem(at:dir)}
+        let path=dir.appendingPathComponent("quota.json")
+        try payload([row],captured:Date().timeIntervalSince1970).write(to:path)
+        try require(try ClaudeQuota.fetch(path:path.path).windows.count==1)
+        try Data(repeating:32,count:16385).write(to:path)
+        try rejects {_=try ClaudeQuota.fetch(path:path.path)}
+    }
+    if let path=ProcessInfo.processInfo.environment["AGENT_USAGE_TEST_CLAUDE_SNAPSHOT"] {
+        check("explicit_claude_bridge_snapshot_decode") {
+            let data=try Data(contentsOf:URL(fileURLWithPath:path))
+            guard let object=try JSONSerialization.jsonObject(with:data) as? [String:Any],
+                  let captured=object["captured_at"] as? Double else {throw CheckFailure.failed}
+            let snapshot=try ClaudeQuota.decode(data,now:Date(timeIntervalSince1970:captured))
+            try require(!snapshot.windows.isEmpty)
+            print("{\"claude_bridge_snapshot\":true,\"fresh\":\(snapshot.fresh()),\"windows\":\(snapshot.windows.count)}")
+        }
+    }
     if let binary=ProcessInfo.processInfo.environment["AGENT_USAGE_TEST_AGY"] {
         check("explicit_native_agy_readonly_smoke") {
             let snapshot=try AgyQuota.fetch(executable:binary)

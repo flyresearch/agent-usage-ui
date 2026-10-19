@@ -2,8 +2,8 @@ import Foundation
 import CoreFoundation
 
 public enum NativeQuotaProvider: String, CaseIterable, Sendable {
-    case codex, agy
-    public var title: String {self == .codex ? "Codex" : "Antigravity CLI"}
+    case codex, agy, claude
+    public var title: String {self == .codex ? "Codex" : self == .agy ? "Antigravity CLI" : "Claude Code"}
 }
 /// Google's documented read-only print-mode command. Version gating prevents
 /// an old CLI from interpreting the slash command as an inference prompt.
