@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import CoreFoundation
 
 public enum NativeQuotaProvider: String, CaseIterable, Sendable {
@@ -44,8 +45,9 @@ public enum AgyQuota {
                 var label="额度组 \(i+1) · 窗口 \(j+1)"
                 let suffix=["daily":"每日窗口","weekly":"每周窗口","monthly":"每月窗口"][period.lowercased()]
                 if let suffix {label += " · "+suffix}
-                let value=NativeQuotaWindow(id:"agy-\(i)-\(j)",title:label,usedPercent:(1-remaining)*100,durationMinutes:nil,resetsAt:reset)
                 let key=try JSONSerialization.data(withJSONObject:[id,period])
+                let stable=SHA256.hash(data:key).map{String(format:"%02x",$0)}.joined()
+                let value=NativeQuotaWindow(id:"agy-"+stable,title:label,usedPercent:(1-remaining)*100,durationMinutes:nil,resetsAt:reset)
                 if let previous=seen[key] {
                     guard previous.usedPercent==value.usedPercent,previous.resetsAt==value.resetsAt else {throw NativeQuotaError.invalidResponse}
                     continue

@@ -98,7 +98,7 @@ public enum LocalCollector {
         defer {flock(fd,LOCK_UN)}
         return try body()
     }
-    private static func publish(_ data:Data,to destination:URL) throws {
+    static func publish(_ data:Data,to destination:URL) throws {
         let temp=destination.deletingLastPathComponent().appendingPathComponent("snapshot-"+UUID().uuidString+".tmp")
         let fd=Darwin.open(temp.path,O_CREAT|O_EXCL|O_WRONLY|O_NOFOLLOW,0o600);guard fd>=0 else {throw UsageError.collectionFailed}
         let file=FileHandle(fileDescriptor:fd,closeOnDealloc:true);defer {try? file.close();try? FileManager.default.removeItem(at:temp)}

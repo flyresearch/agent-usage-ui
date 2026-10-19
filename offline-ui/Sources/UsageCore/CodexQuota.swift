@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Darwin
 import CoreFoundation
 
@@ -15,6 +16,7 @@ public struct NativeQuotaSnapshot: Sendable {
     public let capturedAt: Date
     public let windows: [NativeQuotaWindow]
     public let coverageComplete: Bool
+    public var continuityKey: String? = nil
     public init(capturedAt:Date,windows:[NativeQuotaWindow],coverageComplete:Bool=true) {
         self.capturedAt=capturedAt;self.windows=windows;self.coverageComplete=coverageComplete
     }
@@ -38,12 +40,14 @@ public enum CodexQuota {
     public static func decodeLimits(_ result: Data, now: Date = Date()) throws -> NativeQuotaSnapshot {
         guard let object=(try? JSONSerialization.jsonObject(with:result)) as? [String:Any] else {throw NativeQuotaError.invalidResponse}
         let groups: [[String:Any]]
+        let groupKeys:[String]
         if let value=object["rateLimitsByLimitId"], !(value is NSNull) {
             guard let map=value as? [String:Any] else {throw NativeQuotaError.invalidResponse}
-            groups=try map.keys.sorted().map { key in
+            groupKeys=map.keys.sorted()
+            groups=try groupKeys.map { key in
                 guard let value=map[key] as? [String:Any] else {throw NativeQuotaError.invalidResponse};return value
             }
-        } else if let value=object["rateLimits"] as? [String:Any] { groups=[value] }
+        } else if let value=object["rateLimits"] as? [String:Any] { groups=[value];groupKeys=["legacy"] }
         else {throw NativeQuotaError.invalidResponse}
         guard groups.count<=64 else {throw NativeQuotaError.invalidResponse}
         var windows=[NativeQuotaWindow]()
@@ -61,7 +65,7 @@ public enum CodexQuota {
                 }
                 // Do not expose provider-supplied names or account identifiers.
                 let title=(groups.count>1 ? "额度分组 \(index+1) · " : "")+(kind == "primary" ? "主要窗口" : "次要窗口")
-                windows.append(NativeQuotaWindow(id:"bucket-\(index)-\(kind)",title:title,usedPercent:used,durationMinutes:duration,resetsAt:reset))
+                windows.append(NativeQuotaWindow(id:"bucket-"+SHA256.hash(data:Data(groupKeys[index].utf8)).map{String(format:"%02x",$0)}.joined()+"-"+kind,title:title,usedPercent:used,durationMinutes:duration,resetsAt:reset))
             }
         }
         guard !windows.isEmpty else {throw NativeQuotaError.unsupportedAccount}
@@ -136,6 +140,8 @@ public enum CodexQuota {
         try send(["id":4,"method":"account/read","params":["refreshToken":false]])
         let after=try response(4)
         guard let current=after["account"] as? [String:Any],try JSONSerialization.data(withJSONObject:current,options:.sortedKeys)==binding else {throw NativeQuotaError.requestFailed}
-        return try decodeLimits(JSONSerialization.data(withJSONObject:limits))
+        var snapshot=try decodeLimits(JSONSerialization.data(withJSONObject:limits))
+        snapshot.continuityKey=SHA256.hash(data:binding).map{String(format:"%02x",$0)}.joined()
+        return snapshot
     }
 }

@@ -18,6 +18,9 @@ actor FleetUsageDataSource: UsageDataSource {
     private let selectedHost:@Sendable () -> String?
     init(selectedHost:@escaping @Sendable () -> String? = {UserDefaults.standard.string(forKey:"agentusage.selectedHost").flatMap{$0.isEmpty ? nil:$0}}) {self.selectedHost=selectedHost}
     private var lastAttempt=Date.distantPast
+    private var quotaArchive:NativeQuotaArchive?
+    private var quotaArchiveAttempted=false
+    private var quotaArchiveFailed=false
     private var quotaFlights=[NativeQuotaProvider:Task<NativeQuotaSnapshot,Error>]()
     private var quotaKeys=[NativeQuotaProvider:String]()
     private var quotaGenerations=[NativeQuotaProvider:UInt64]()
@@ -226,9 +229,26 @@ actor FleetUsageDataSource: UsageDataSource {
         async let claude:Void=refreshQuota(provider:.claude,force:force)
         _=await (codex,agy,claude)
     }
+    private func loadQuotaHistory() {
+        guard !quotaArchiveAttempted else {return}
+        quotaArchiveAttempted=true
+        do {
+            let directory=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("AgentUsageOffline/quota-history")
+            quotaArchive=try NativeQuotaArchive(directory:directory)
+        } catch {quotaArchiveFailed=true}
+    }
     func refreshQuota(provider:NativeQuotaProvider = .codex,force:Bool=false) async {
+        loadQuotaHistory()
+        let saved=quotaArchive?.history.observations(provider) ?? []
+        let historyFailed=quotaArchiveFailed
+        await MainActor.run {
+            let state=FleetUIState.shared.quotaState(provider)
+            if state.history.isEmpty {state.history=saved}
+            state.historyMessage=historyFailed ? "本地历史不可用（文件损坏、不可写或另一实例正在使用）；当前额度仍可查询。":nil
+        }
         let config:CollectorSettings
         do {config=try settings()} catch {
+            quotaArchive?.breakContinuity(provider)
             await MainActor.run {FleetUIState.shared.quotaState(provider).quota=nil;FleetUIState.shared.quotaState(provider).quotaMessage="无法读取额度配置"}
             return
         }
@@ -236,6 +256,7 @@ actor FleetUsageDataSource: UsageDataSource {
         let key=enabled ? "enabled|"+executable : "disabled"
         let changed=key != quotaKeys[provider]
         if changed {
+            quotaArchive?.breakContinuity(provider)
             quotaFlights[provider]?.cancel();quotaFlights[provider]=nil;quotaKeys[provider]=key;quotaAttempts[provider] = -1000;quotaGenerations[provider,default:0] &+= 1
         }
         let generation=quotaGenerations[provider,default:0]
@@ -268,10 +289,22 @@ actor FleetUsageDataSource: UsageDataSource {
             let value=try await task.value
             let current=try settings()
             if quotaGenerations[provider,default:0]==generation,current.quotaEnabled(provider),current.quotaExecutable(provider)==executable {
-                await MainActor.run {if FleetUIState.shared.quotaState(provider).quotaGeneration==generation {FleetUIState.shared.quotaState(provider).quota=value}}
+                var historyMessage:String?
+                do {try quotaArchive?.record(value,provider:provider)}
+                catch {quotaArchive?.breakContinuity(provider);historyMessage="历史保存失败；当前额度仍可查看。"}
+                let observations=quotaArchive?.history.observations(provider) ?? []
+                let notice=historyMessage
+                await MainActor.run {
+                    let state=FleetUIState.shared.quotaState(provider)
+                    if state.quotaGeneration==generation {
+                        state.quota=value;state.history=observations
+                        if let notice {state.historyMessage=notice}
+                    }
+                }
             }
         } catch {
             guard quotaGenerations[provider,default:0]==generation else {return}
+            quotaArchive?.breakContinuity(provider)
             let message:String
             switch error {
             case NativeQuotaError.missingSample:message="等待 Claude Code 会话提供额度；需在订阅会话首次响应后获取"

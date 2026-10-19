@@ -144,3 +144,29 @@ extension FleetProjectionCheck {
         } catch {return 1}
     }
 }
+
+extension FleetProjectionCheck {
+    @MainActor static func renderQuotaHistory(directory:String) -> Int32 {
+        do {
+            let now=Date(),reset=Int(now.timeIntervalSince1970)+3600
+            var history=NativeQuotaHistory(),latest:NativeQuotaSnapshot?
+            for i in 0...18 {
+                let data=try JSONSerialization.data(withJSONObject:["rateLimits":["primary":["usedPercent":10+i*2,"windowDurationMins":60,"resetsAt":reset]]])
+                var snapshot=try CodexQuota.decodeLimits(data,now:now.addingTimeInterval(Double(i-18)*60))
+                snapshot.continuityKey="synthetic"
+                if i==9 {history.breakContinuity(.codex)}
+                history.record(snapshot,provider:.codex,now:snapshot.capturedAt);latest=snapshot
+            }
+            for dark in [false,true] {
+                let view=FleetQuotaHistoryView(points:history.points,provider:.codex,snapshot:latest,now:now)
+                    .padding(16).frame(width:PopoverChrome.width)
+                    .background(dark ? Color(red:0.13,green:0.13,blue:0.14):Color(red:0.96,green:0.96,blue:0.97))
+                    .environment(\.colorScheme,dark ? .dark:.light)
+                let renderer=ImageRenderer(content:view);renderer.scale=2
+                guard let image=renderer.cgImage,let data=NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:]) else {return 1}
+                try data.write(to:URL(fileURLWithPath:directory).appendingPathComponent("quota-history-\(dark ? "dark":"light").png"))
+            }
+            return 0
+        } catch {return 1}
+    }
+}

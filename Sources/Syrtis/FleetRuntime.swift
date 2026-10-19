@@ -9,6 +9,8 @@ import UsageCore
     var quotaGeneration:UInt64=0
     var quota:NativeQuotaSnapshot?
     var quotaMessage:String?
+    var history:[QuotaObservation]=[]
+    var historyMessage:String?
 }
 
 @MainActor @Observable final class FleetUIState {

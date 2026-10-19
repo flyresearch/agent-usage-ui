@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-19
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift"]
 ---
 
 # Offline agent-usage consumer
@@ -424,3 +424,46 @@ The fleet panel has no horizontal scrolling or drag gesture competing with click
 production selector at the actual popover width, using synthetic client IDs in
 light/dark appearances and all/single selection states. This does not start the
 fleet runtime or read account data. Rendered artifacts remain outside Git.
+
+## Native quota observation history
+
+The isolated quota bridges now keep a separate local seven-day observation
+archive, capped at 10,000 points per provider. The quota card offers 24-hour and
+seven-day views plus a stable window selector. It records only generated window
+labels/keys, observation time, percentage, duration/reset metadata and random
+segment IDs. Account comparison hashes remain in memory and are never archived;
+credentials, account objects and raw CLI responses are not stored. This does not
+enable the legacy GUI quota cache or its provider initialization.
+
+Codex checks the native account before and after each query. Its stable window
+keys derive from the protocol bucket key rather than a changing list position.
+A segment additionally requires known reset and duration. Account changes,
+missing windows, reset/duration changes, percentage decreases, failed queries,
+clock regression, gaps over five minutes and app restarts break continuity.
+A historical segment is not claimed to belong to the currently signed-in account.
+Claude and Antigravity do not yet provide verified account continuity through
+these bridges, so their history is shown as independent observations, without
+lines or pace forecasts. Repeated callbacks with the same capture time add no
+points. The existing subscription account/host separation is unchanged.
+
+Trend calculations require at least three fresh, contiguous samples of the same
+segment spanning at least five minutes, and use at most the latest thirty
+minutes. They report observed net percentage-point change per hour, not token
+throughput or authoritative consumption. Exhaustion is a conditional linear
+estimate, shown only if it falls before the current reset; flat observations
+produce no exhaustion estimate. No history is backfilled. Sparse or unverifiable
+samples display an explanation instead of a made-up rate. Charts limit rendering
+to roughly 720 sampled points per window; calculations retain all observations.
+
+The archive lives under the app's private support directory. Atomic mode-0600
+writes and an exclusive single-writer lock prevent partial writes and competing
+instances from overwriting history. Corrupt/locked/unwritable history is surfaced
+separately from current quota availability and is not silently overwritten.
+Synthetic tests cover boundaries, identity/reset changes, replay, retention,
+window-key stability, restart, locking and permissions. Real-query smoke checks
+validate bridge decoding; they cannot replace observing enough live samples to
+qualify a trend.
+
+`Syrtis --fleet-offline --fleet-quota-history-preview OUTPUT_DIRECTORY` renders
+the production history chart using synthetic interrupted-series data in light
+and dark appearances. It does not query providers or write the real archive.

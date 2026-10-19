@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 import UsageCore
 import TokenBarCore
 
@@ -93,6 +94,11 @@ struct FleetQuotaCard: View {
                     Text(state.quotaMessage ?? "额度数据已过期或尚未获取，请刷新。")
                         .font(.caption).foregroundStyle(.orange)
                 }
+                if state.quotaEnabled {
+                    Divider()
+                    FleetQuotaHistoryView(points:state.history,provider:provider,snapshot:state.quota,now:now)
+                    if let notice=state.historyMessage {Text(notice).font(.caption2).foregroundStyle(.orange)}
+                }
                 Group {
                     Button(provider == .claude ? "重新读取快照":"刷新额度") {Task {await FleetUsageDataSource.shared.refreshQuota(provider:provider,force:true)}}
                         .disabled(!state.quotaEnabled || state.quotaLoading)
@@ -106,5 +112,103 @@ struct FleetQuotaCard: View {
         if minutes%1440==0 {return "\(minutes/1440) 天"}
         if minutes%60==0 {return "\(minutes/60) 小时"}
         return "\(minutes) 分钟"
+    }
+}
+
+
+struct FleetQuotaHistoryView: View {
+    let points:[QuotaObservation]
+    let provider:NativeQuotaProvider
+    let snapshot:NativeQuotaSnapshot?
+    let now:Date
+    @SyrtisState private var days=1
+    @SyrtisState private var selectedWindow=""
+    private var windowIDs:[String] {Array(Set(points.map(\.window))).sorted()}
+    private var window:String {windowIDs.contains(selectedWindow) ? selectedWindow:points.last?.window ?? ""}
+    private var visible:[QuotaObservation] {
+        points.filter{$0.window==window && $0.time>=now.addingTimeInterval(-Double(days)*86400) && $0.time<=now}
+    }
+    private var plotted:[QuotaObservation] {
+        let values=visible,step=max(1,Int(ceil(Double(values.count)/720)))
+        var result=stride(from:0,to:values.count,by:step).map{values[$0]}
+        if let last=values.last,result.last?.id != last.id {result.append(last)}
+        return result
+    }
+    var body:some View {
+        VStack(alignment:.leading,spacing:8) {
+            HStack {
+                Text("额度历史").font(.caption.bold())
+                Spacer()
+                HStack(spacing:2) {
+                    ForEach([1,7],id:\.self) { value in
+                        Button {days=value} label: {
+                            Text(value==1 ? "24 小时":"7 天")
+                                .font(.caption.weight(days==value ? .semibold:.regular))
+                                .padding(.horizontal,9).padding(.vertical,5)
+                                .background(days==value ? Color.accentColor.opacity(0.14):Color.clear,in:RoundedRectangle(cornerRadius:5))
+                        }.buttonStyle(.plain)
+                        .accessibilityAddTraits(days==value ? .isSelected:[])
+                    }
+                }.padding(2).background(.primary.opacity(0.04),in:RoundedRectangle(cornerRadius:7))
+            }
+            if points.isEmpty {
+                Text("尚无历史观测；从启用后开始记录，不回填过去数据。")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                FlowLayout(hSpacing:6,vSpacing:4) {
+                    ForEach(windowIDs,id:\.self) { id in
+                        Button {selectedWindow=id} label: {
+                            Text(points.last{$0.window==id}?.title ?? "额度窗口")
+                                .font(.caption2.weight(window==id ? .semibold:.regular))
+                                .padding(.horizontal,7).padding(.vertical,5)
+                                .foregroundStyle(window==id ? Color.accentColor:Color.secondary)
+                                .background(window==id ? Color.accentColor.opacity(0.12):Color.primary.opacity(0.04),in:RoundedRectangle(cornerRadius:5))
+                        }.buttonStyle(.plain).accessibilityAddTraits(window==id ? .isSelected:[])
+                    }
+                }
+                if visible.isEmpty {
+                    Text("所选时间范围内没有观测。").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Chart(plotted) { point in
+                        if point.continuous {
+                            LineMark(x:.value("时间",point.time),y:.value("已用百分比",point.used),series:.value("连续采集段",point.segment))
+                                .foregroundStyle(Color.accentColor.opacity(0.75))
+                        }
+                        PointMark(x:.value("时间",point.time),y:.value("已用百分比",point.used))
+                            .foregroundStyle(Color.accentColor).symbolSize(12)
+                    }
+                    .chartYScale(domain:0...100)
+                    .chartYAxis {AxisMarks(values:[0,50,100]) { value in
+                        AxisGridLine();AxisValueLabel {if let v=value.as(Int.self) {Text("\(v)%")}}
+                    }}
+                    .chartXAxis {AxisMarks(values:.automatic(desiredCount:3))}
+                    .chartLegend(.hidden).frame(height:115)
+                    Text("\(visible.count) 次观测 · 最近 "+visible.last!.time.formatted(date:.abbreviated,time:.shortened))
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                if let snapshot,snapshot.fresh(at:now),
+                   let last=visible.last,last.time==snapshot.capturedAt,
+                   let trend=NativeQuotaHistory.trend(visible,now:now) {
+                    Text(String(format:"近期净增 %.1f 个百分点／小时",trend.percentagePointsPerHour))
+                        .font(.caption.monospacedDigit())
+                    if last.used>=100 {
+                        Text("当前观测额度已用尽。").font(.caption2).foregroundStyle(.orange)
+                    } else if trend.percentagePointsPerHour==0 {
+                        Text("近期未观察到额度比例净增长，暂不估算耗尽时间。").font(.caption2).foregroundStyle(.secondary)
+                    } else if let exhaustion=trend.exhaustedAt {
+                        Text("按近期变化估算，可能于 "+exhaustion.formatted(date:.omitted,time:.shortened)+" 耗尽；非服务端预测。")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    } else {
+                        Text("按近期变化推算，未预计在当前重置时间前耗尽。")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text(provider == .codex ? "趋势需完整窗口信息及至少 3 个同账号、同窗口的连续样本，跨度满 5 分钟；中断后重新积累。":"账号连续性尚未确认，仅显示观测点，不推算消耗速度或耗尽时间。")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            Text("仅保留本机最近 7 天观测。账号变化、重置、回落、重启及采集中断分段显示，不跨段推算。")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
     }
 }
