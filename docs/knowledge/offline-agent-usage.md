@@ -404,3 +404,12 @@ UsageCore checks and fleet projection checks. Synthetic payloads stay in tempora
 directories and are never injected into the real status-line bridge. Live
 acceptance requires an actual Claude callback; installation alone is not evidence
 of a current subscription quota.
+
+
+## Mouse-friendly client tabs
+
+Fleet client tabs use the existing wrapping `FlowLayout`, so every visible
+client is directly clickable without horizontal scrolling. Overview stays first.
+Right-clicking a client offers move-before/move-after actions in the shared tab
+order, preserving hidden clients through the existing reorder implementation.
+The fleet row has no drag gesture competing with clicks or scroll gestures.

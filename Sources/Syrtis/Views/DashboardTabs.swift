@@ -1,6 +1,9 @@
 import SwiftUI
 import TokenBarCore
 
+/// Fleet mode wraps client buttons and exposes reordering through a context menu.
+/// The original runtime retains its scrolling/drag-reordering row.
+///
 /// Client tab row (Overview + one tab per present client), port of
 /// DashboardTabs.tsx: horizontal scroll, active tab kept in view. SVG agent
 /// icons arrive in a later phase — tabs show a brand-color disc with the
@@ -40,6 +43,37 @@ struct DashboardTabs: View {
     }
 
     var body: some View {
+        if FleetMode.enabled {
+            FlowLayout(hSpacing: 4, vSpacing: 4) {
+                tab(id: "overview", label: "Overview".localized, color: nil, index: 1)
+                ForEach(Array(clients.enumerated()), id: \.element) { i, id in
+                    tab(id: id, label: ClientRegistry.tabLabel(id),
+                        color: ClientRegistry.style(id).color, index: i + 2)
+                        .contextMenu {
+                            Button("向前移动") { moveClient(id, by: -1) }
+                                .disabled(i == 0)
+                            Button("向后移动") { moveClient(id, by: 1) }
+                                .disabled(i == clients.count - 1)
+                        }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+            scrollingTabs
+        }
+    }
+
+    private func moveClient(_ id: String, by offset: Int) {
+        guard let index = clients.firstIndex(of: id),
+              clients.indices.contains(index + offset) else { return }
+        let full = Self.completeOrder(ClientRegistry.parseIdList(orderRaw), present: presentClients)
+        orderRaw = ClientRegistry.mergeReorder(
+            full: full, visible: clients, from: id, to: clients[index + offset])
+            .joined(separator: ",")
+    }
+
+    private var scrollingTabs: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
