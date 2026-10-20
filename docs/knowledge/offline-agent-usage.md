@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-20
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
 ---
 
 # Offline agent-usage consumer
@@ -537,7 +537,7 @@ No row is waived merely because this installation has not used it yet.
 | R10 | Multi-account management and explicit account selection | Pending beyond native current-account/session observations | Add/select/remove without mixing histories; native login handoff; account change during refresh and restart tests |
 | R11 | Quota history, cycles, consumption pace and forecasts | Partial: bounded seven-day observations; verified in-process Codex trends | Account/window binding, continuity across restart when trustworthy, cycle history, uncertainty and reset/backfill boundaries |
 | R12 | Subscription attribution and quota-window local usage | Pending | Explicit confirmed mapping, unassigned bucket, reversible reassignment, concurrent mapping changes and no double counting |
-| R13 | Limits/card/window visibility, ordering and source filters | Partial: source/lens controls work; some fleet settings hidden | Every retained control affects the corresponding producer/view and persists correctly |
+| R13 | Limits/card/window visibility, ordering and source filters | Partial: source/lens and native quota visibility controls connected; upstream layout/pace variants remain pending | Every retained control affects the corresponding producer/view and persists correctly |
 | R14 | Login startup and application lifecycle | Entry restored and updater gate separated; actual login-cycle acceptance pending | Actual login registration, launch, quit/restart, duplicate-instance behavior and permission failure paths |
 | R15 | Refresh settings and background collection | Configurable normal cadence and live override implemented; wake/long-run checks pending | User-facing interval controls, manual refresh, sleep/wake, failure cooldown and quota/history status consistency |
 | R16 | Language, appearance, popover size and accessibility | Language selector restored; full fleet-specific translations and interaction checks remain | Language selection/restart, full copy coverage, contrast, focus order, VoiceOver, shortcuts and small displays |
@@ -731,3 +731,32 @@ fix, a short process observation was roughly 3–6% CPU, and a separate main-thr
 sample was mostly waiting for events. These are bounded observations, not proof
 of every interaction or long-run scenario; Computer Use still timed out. Private
 samples and live archives remain outside the repository.
+
+
+## Native quota display controls
+
+Fleet Dashboard settings now expose the master quota-card toggle, used/remaining
+bar direction, per-provider visibility and a history/trend visibility toggle.
+The master, direction and provider switches reuse the original preference keys;
+only the optional history display key is new (default on). Both Overview and the
+Quota lens use the same production visibility policy, including tab hiding and
+saved client ordering. Unsupported clients retain an explicit unavailable card
+when visible. These preferences do not change provider polling, history storage
+or local usage totals. Hiding history removes its view computation while keeping
+observations available for later display.
+
+The existing main-menu Auto quota picker also excludes quota-hidden clients;
+explicit menu selections remain independent, following the upstream policy.
+The display settings explain the effect on Auto selection. Original layout and
+pace-model options remain unexposed until their actual fleet equivalents exist;
+this closes a bounded part of R13, not the entire replacement ledger.
+
+Five production-policy checks cover the master switch, combined tab/provider
+hiding, a directly selected hidden provider, unsupported-provider placeholders
+and saved order. The native history preview additionally exports the actual
+settings content in both appearances without changing preferences. The compositor
+glass wrapper is excluded from this offscreen render; native switch surfaces are
+not supported by ImageRenderer, so this only verifies text layout and contrast.
+The 36 fleet projection checks, original application selftest and documentation
+checks pass. Click-through
+acceptance remains separate from these checks.

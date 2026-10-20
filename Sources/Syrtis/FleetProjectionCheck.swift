@@ -96,9 +96,16 @@ enum FleetProjectionCheck {
             guard splitGraph.contributions[0].clients.count==2,
                 splitGraph.contributions[0].clients.first(where:{$0.client=="codex"})?.tokens.total==100 else {throw FleetSourceError.unavailable}
             try await FleetAnalysisCheck.run(oldHours:hours,newHours:codexHours,oldAgents:roles,newAgents:childRole)
+            // Production display policy: hiding must work without a live quota snapshot.
+            guard FleetQuotaPolicy.visibleClients(client:nil,enabled:false,tabsHidden:"",limitsHidden:"",order:"").isEmpty,
+                  FleetQuotaPolicy.visibleClients(client:nil,enabled:true,tabsHidden:"claude",limitsHidden:"agy",order:"")==["codex"],
+                  FleetQuotaPolicy.visibleClients(client:"claude",enabled:true,tabsHidden:"",limitsHidden:"claude",order:"").isEmpty,
+                  FleetQuotaPolicy.visibleClients(client:"workbuddy",enabled:true,tabsHidden:"",limitsHidden:"",order:"")==["workbuddy"],
+                  FleetQuotaPolicy.visibleClients(client:nil,enabled:true,tabsHidden:"",limitsHidden:"",order:"claude,codex,agy")==["claude","codex","agy"]
+            else {throw FleetSourceError.unavailable}
             let quota=try await checkNativeQuota(source)
             try await checkDesktop(graph:graph,quota:quota,fleet:fleet)
-            print("{\"passed\":31,\"failed\":[]}");return 0
+            print("{\"passed\":36,\"failed\":[]}");return 0
         } catch {print("{\"passed\":0,\"failed\":[\"fleet_projection\"]}");return 1}
     }
 }
@@ -182,6 +189,13 @@ extension FleetProjectionCheck {
                 let elapsed=(ProcessInfo.processInfo.systemUptime-started)*1000
                 print(String(format:"{\"history_render_points\":%d,\"dark\":%@,\"render_ms\":%.3f}",points.count,dark ? "true":"false",elapsed))
                 try data.write(to:URL(fileURLWithPath:directory).appendingPathComponent("quota-history-\(dark ? "dark":"light").png"))
+                let settings=FleetQuotaDisplaySettings().controls.padding(16).frame(width:PopoverChrome.width)
+                    .background(dark ? Color(red:0.13,green:0.13,blue:0.14):Color(red:0.96,green:0.96,blue:0.97))
+                    .environment(\.colorScheme,dark ? .dark:.light)
+                let settingsRenderer=ImageRenderer(content:settings);settingsRenderer.scale=2
+                guard let settingsImage=settingsRenderer.cgImage,
+                      let settingsData=NSBitmapImageRep(cgImage:settingsImage).representation(using:.png,properties:[:]) else {return 1}
+                try settingsData.write(to:URL(fileURLWithPath:directory).appendingPathComponent("quota-settings-\(dark ? "dark":"light").png"))
             }
             return 0
         } catch {return 1}

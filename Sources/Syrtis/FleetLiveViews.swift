@@ -48,17 +48,27 @@ struct FleetActivityCard: View {
 }
 struct FleetQuotaSection: View {
     var client:String?
+    @AppStorage("tokenbar.limits.enabled") private var enabled = true
+    @AppStorage(ClientRegistry.tabHiddenKey) private var tabsHidden = ""
+    @AppStorage(ClientRegistry.limitsHiddenKey) private var limitsHidden = ""
+    @AppStorage(ClientRegistry.tabOrderKey) private var order = ""
     var body:some View {
-        if client == nil || client == "codex" {FleetQuotaCard(provider:.codex)}
-        if client == nil || client == "agy" {FleetQuotaCard(provider:.agy)}
-        if client == nil || client == "claude" {FleetQuotaCard(provider:.claude)}
-        if let client,client != "codex",client != "agy",client != "claude" {
-            DashCard("在线额度") {Text("此 Agent 尚未接入官方额度接口，请在原应用查看。").font(.caption).foregroundStyle(.secondary)}
+        ForEach(FleetQuotaPolicy.visibleClients(client:client,enabled:enabled,
+            tabsHidden:tabsHidden,limitsHidden:limitsHidden,order:order),id: \.self) { id in
+            switch id {
+            case "codex": FleetQuotaCard(provider:.codex)
+            case "agy": FleetQuotaCard(provider:.agy)
+            case "claude": FleetQuotaCard(provider:.claude)
+            default:
+                DashCard("在线额度") {Text("此 Agent 尚未接入官方额度接口，请在原应用查看。").font(.caption).foregroundStyle(.secondary)}
+            }
         }
     }
 }
 struct FleetQuotaCard: View {
     let provider:NativeQuotaProvider
+    @AppStorage("tokenbar.limits.asUsed") private var asUsed = false
+    @AppStorage(FleetQuotaPolicy.historyVisibleKey) private var historyVisible = true
     var body: some View {
         TimelineView(.periodic(from:.now,by:5)) { clock in content(now:clock.date) }
             .task {await FleetUsageDataSource.shared.refreshQuota(provider:provider)}
@@ -81,7 +91,9 @@ struct FleetQuotaCard: View {
                             if let reset=window.resetsAt,reset <= now {
                                 Text("窗口已到重置时间，等待重新获取").font(.caption).foregroundStyle(.orange)
                             } else {
-                                ProgressView(value:window.usedPercent,total:100)
+                                ProgressView(value:asUsed ? window.usedPercent:window.remainingPercent,total:100)
+                                    .accessibilityLabel(asUsed ? "已用额度":"剩余额度")
+                                    .accessibilityValue(String(format:"%.1f%%",asUsed ? window.usedPercent:window.remainingPercent))
                                 Text(String(format:"已用 %.1f%% · 剩余 %.1f%%",window.usedPercent,window.remainingPercent))
                                     .font(.caption.monospacedDigit())
                             }
@@ -94,7 +106,7 @@ struct FleetQuotaCard: View {
                     Text(state.quotaMessage ?? "额度数据已过期或尚未获取，请刷新。")
                         .font(.caption).foregroundStyle(.orange)
                 }
-                if state.quotaEnabled {
+                if state.quotaEnabled && historyVisible {
                     Divider()
                     FleetQuotaHistoryView(points:state.history,provider:provider,snapshot:state.quota,now:now)
                     if let notice=state.historyMessage {Text(notice).font(.caption2).foregroundStyle(.orange)}

@@ -4,6 +4,20 @@ import TokenBarCore
 /// Apply the native bridges' freshness contract at presentation time, including
 /// when the popover is closed. Never reuse the legacy persisted scalar.
 enum FleetQuotaPolicy {
+    static let historyVisibleKey = "agentusage.quota.historyVisible"
+    static let clients = ["codex", "agy", "claude"]
+
+    /// Display preferences only: collection and retained history are independent.
+    static func visibleClients(client: String?, enabled: Bool, tabsHidden: String,
+                               limitsHidden: String, order: String) -> [String] {
+        guard enabled else { return [] }
+        let excluded = ClientRegistry.quotaExcludedClients(
+            tabHidden: ClientRegistry.parseIdSet(tabsHidden),
+            limitsHidden: ClientRegistry.parseIdSet(limitsHidden))
+        return ClientRegistry.orderedClients(client.map { [$0] } ?? clients, orderRaw: order)
+            .filter { !excluded.contains($0) }
+    }
+
     static func current(_ payload:AgentUsagePayload?,now:Date=Date()) -> AgentUsagePayload? {
         guard let payload else {return nil}
         return payload.replacingAgents(payload.agents.filter { agent in

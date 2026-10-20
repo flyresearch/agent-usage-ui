@@ -484,6 +484,7 @@ struct SettingsPanel: View {
         presentSet: Set<String>,
         tabsUniverse: [String]
     ) -> some View {
+        if FleetMode.enabled { FleetQuotaDisplaySettings() }
         section("Agent limits") {
             toggleRow("Show Agent limits card", isOn: $limitsEnabled)
             hint("Off hides the quota card on Overview and on every client tab.")
