@@ -662,7 +662,34 @@ acceptance items; restoring their controls is not proof those user actions ran.
 
 Batch verification: 49 UsageCore checks (including collector integration), 31
 fleet projection/desktop checks, and the original application selftest pass.
-The packaged read-only desktop check recognizes the app bundle but reports the
-login service as unavailable on the current test machine. No registration was
-attempted, so this proves neither a successful login launch nor a registration
-failure. Login-cycle acceptance remains open. Computer Use still times out.
+The initial packaged read-only desktop check reported the login service as
+unavailable; the later explicitly authorized registration qualification below
+supersedes that unresolved registration status. Login-cycle acceptance remains
+open. Computer Use still times out.
+
+
+## Login-service registration qualification
+
+The initial read-only check returned native status 3 (`notFound`) even though
+Launch Services resolved the currently running bundle and its signature verified.
+That status alone did not establish a broken install or rejected signature.
+After explicit permission for a temporary test, the packaged application ran
+`SMAppService.mainApp.register()`, observed status 1 (`enabled`), then successfully
+unregistered and observed status 0 (`notRegistered`). A separate readback also
+reported disabled. The test did not leave login startup enabled.
+
+The operational `--fleet-login-roundtrip` command is never called during normal
+startup or automated tests. It refuses an already enabled/approval-pending service,
+reports registration and cleanup separately, and requires verified restoration
+for success. Run it only with explicit authorization for this temporary preference
+change. `--fleet-desktop-check` remains read-only and now includes controlled
+service codes and booleans for application-registration lookup/matching, without
+printing installation paths or raw system error text.
+
+The UI now classifies signature rejection, authorization, missing service,
+service unavailability, explicit user denial and invalid service errors. Unknown
+domains/codes remain generic fixed text; no NSError messages or userInfo are shown.
+Registration/unregistration is qualified on the local build, independently of
+login-cycle launch. Actual logout/login, language-switch click-through and menu
+interaction acceptance remain open; Computer Use still times out. Do not report
+these as tested simply because registration succeeds.

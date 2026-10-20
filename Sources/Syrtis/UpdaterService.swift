@@ -89,6 +89,13 @@ enum AutostartService {
         }.value
     }
     static func openSettings() {SMAppService.openSystemSettingsLoginItems()}
+    static func diagnostic() -> [String:Any] {
+        let bundle=Bundle.main
+        let registered=bundle.bundleIdentifier.flatMap{NSWorkspace.shared.urlForApplication(withBundleIdentifier:$0)}
+        return ["service_status_code":SMAppService.mainApp.status.rawValue,
+                "registered_application_found":registered != nil,
+                "registered_application_matches":registered?.standardizedFileURL == bundle.bundleURL.standardizedFileURL]
+    }
 
     nonisolated static func readEnabled() async -> Bool {
         await Task.detached(priority: .utility) {
@@ -96,17 +103,72 @@ enum AutostartService {
         }.value
     }
 
-    @discardableResult
-    static func setEnabled(_ enabled: Bool) -> Bool {
-        do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
+    enum Failure:String,Sendable {
+        case invalidSignature,authorization,serviceMissing,serviceUnavailable,deniedByUser,alreadyRegistered,invalidService,system
+        var message:String {
+            switch self {
+            case .invalidSignature:return "系统拒绝了应用签名，请重新安装有效签名的应用。"
+            case .authorization:return "系统未授权修改登录项，请在系统设置中核对。"
+            case .serviceMissing:return "系统未找到登录服务，请检查应用登记与安装状态。"
+            case .serviceUnavailable:return "系统登录项服务当前不可用，请稍后重试。"
+            case .deniedByUser:return "登录启动已被系统设置中的用户选择禁用。"
+            case .alreadyRegistered:return "登录项已存在；开关显示系统当前状态。"
+            case .invalidService:return "系统判定应用登录服务无效，请检查安装包。"
+            case .system:return "系统未能更新登录项，请稍后重试或查看系统登录项设置。"
             }
-            return true
-        } catch {
-            return false
         }
+    }
+    struct Mutation:Sendable {
+        let accepted:Bool
+        let failure:Failure?
+        let code:Int?
+    }
+    static func classify(domain:String,code:Int) -> Failure {
+        guard ["SMAppServiceErrorDomain",kSMErrorDomainFramework as String].contains(domain) else {return .system}
+        switch code {
+        case Int(kSMErrorInvalidSignature):return .invalidSignature
+        case Int(kSMErrorAuthorizationFailure):return .authorization
+        case Int(kSMErrorJobNotFound),Int(kSMErrorJobPlistNotFound):return .serviceMissing
+        case Int(kSMErrorServiceUnavailable):return .serviceUnavailable
+        case Int(kSMErrorLaunchDeniedByUser):return .deniedByUser
+        case Int(kSMErrorAlreadyRegistered):return .alreadyRegistered
+        case Int(kSMErrorToolNotValid),Int(kSMErrorInvalidPlist):return .invalidService
+        default:return .system
+        }
+    }
+    static func change(_ enabled:Bool) -> Mutation {
+        guard isAvailable else {return Mutation(accepted:false,failure:.invalidService,code:nil)}
+        do {
+            if enabled {try SMAppService.mainApp.register()}
+            else {try SMAppService.mainApp.unregister()}
+            return Mutation(accepted:true,failure:nil,code:nil)
+        } catch {
+            let value=error as NSError
+            return Mutation(accepted:false,failure:classify(domain:value.domain,code:value.code),code:value.code)
+        }
+    }
+    @discardableResult
+    static func setEnabled(_ enabled: Bool) -> Bool {change(enabled).accepted}
+
+    /// Explicit opt-in operational test. Never run automatically or alter a
+    /// service that was already enabled or awaiting user approval.
+    static func registrationRoundTrip() -> [String:Any] {
+        let initial=SMAppService.mainApp.status
+        guard isAvailable,initial == .notRegistered || initial == .notFound else {
+            return ["test_ran":false,"reason":"preexisting_or_unavailable_service"]
+        }
+        let registration=change(true)
+        let observed=SMAppService.mainApp.status
+        var cleanup:Mutation?
+        if registration.accepted || observed == .enabled || observed == .requiresApproval {cleanup=change(false)}
+        let final=SMAppService.mainApp.status
+        var result:[String:Any]=["test_ran":true,"initial_status":initial.rawValue,
+            "registration_accepted":registration.accepted,"registered_status":observed.rawValue,
+            "final_status":final.rawValue,"left_enabled":final == .enabled || final == .requiresApproval,
+            "restoration_verified":final == .notRegistered]
+        if let failure=registration.failure {result["registration_error"]=failure.rawValue}
+        if let code=registration.code {result["registration_code"]=code}
+        if let cleanup {result["cleanup_accepted"]=cleanup.accepted;if let failure=cleanup.failure {result["cleanup_error"]=failure.rawValue}}
+        return result
     }
 }

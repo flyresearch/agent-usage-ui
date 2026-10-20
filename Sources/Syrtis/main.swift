@@ -4,6 +4,15 @@ import AppKit
 // `--selftest` runs the TokenBarCore logic checks; anything else boots the
 // menu-bar app (no storyboard, no .app bundle yet).
 
+if CommandLine.arguments.contains("--fleet-login-roundtrip") {
+    Task { @MainActor in
+        _ = NSApplication.shared
+        let result=AutostartService.registrationRoundTrip()
+        if let data=try? JSONSerialization.data(withJSONObject:result,options:.sortedKeys),let output=String(data:data,encoding:.utf8) {print(output)}
+        exit(result["test_ran"] as? Bool != true ? 2 : result["restoration_verified"] as? Bool == true ? 0:1)
+    }
+    dispatchMain()
+}
 if CommandLine.arguments.contains("--fleet-desktop-check") {
     Task { @MainActor in exit(await FleetProjectionCheck.desktopReadback()) }
     dispatchMain()

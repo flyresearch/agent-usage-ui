@@ -975,11 +975,11 @@ struct SettingsPanel: View {
                     toggleRow("Launch at login",isOn:Binding(get:{autostartEnabled},set:{next in
                         guard !autostartPending else {return}
                         autostartMutationCommitted=true;autostartRevision += 1;autostartPending=true;autostartNotice=nil
-                        let accepted=AutostartService.setEnabled(next)
+                        let mutation=AutostartService.change(next)
                         Task { @MainActor in
                             let state=await AutostartService.readState()
                             autostartEnabled=state == .enabled;autostartPending=false
-                            if !accepted {autostartNotice="登录启动设置未成功，请检查系统登录项。"}
+                            if !mutation.accepted {autostartNotice=mutation.failure?.message}
                             else if state == .requiresApproval {autostartNotice="请在系统设置的登录项中允许 Agent Usage 启动。"}
                             else if state == .unavailable {autostartNotice="无法确认登录启动状态，请检查系统登录项。"}
                             else if autostartEnabled != next {autostartNotice="系统登录启动状态尚未更新，请在系统设置中核对。"}

@@ -209,6 +209,10 @@ extension FleetProjectionCheck {
 
 extension FleetProjectionCheck {
     @MainActor static func checkDesktop(graph:UsagePayload,quota:AgentUsagePayload,fleet:FleetSnapshot) throws {
+        for (code,expected) in [(3,AutostartService.Failure.invalidSignature),(4,.authorization),(6,.serviceMissing),(7,.serviceUnavailable),(11,.deniedByUser),(12,.alreadyRegistered),(99,.system)] {
+            guard AutostartService.classify(domain:"SMAppServiceErrorDomain",code:code)==expected else {throw FleetSourceError.unavailable}
+        }
+        guard AutostartService.classify(domain:"synthetic-untrusted-domain",code:3) == .system else {throw FleetSourceError.unavailable}
         let state=FleetUIState();state.fleet=fleet
         guard state.allClients==["codex","hermes"] else {throw FleetSourceError.unavailable}
         guard AutostartService.supports(bundleURL:URL(fileURLWithPath:"/synthetic/Agent Usage.app"),identifier:"org.example.fixture"),
@@ -235,7 +239,10 @@ extension FleetProjectionCheck {
     @MainActor static func desktopReadback() async -> Int32 {
         _ = NSApplication.shared
         let state=await AutostartService.readState()
-        let result:[String:Any]=["bundle_available":AutostartService.isAvailable,"login_startup_state":String(describing:state),"fleet_mode":FleetMode.enabled]
+        var result=AutostartService.diagnostic()
+        result["bundle_available"]=AutostartService.isAvailable
+        result["login_startup_state"]=String(describing:state)
+        result["fleet_mode"]=FleetMode.enabled
         guard let data=try? JSONSerialization.data(withJSONObject:result,options:.sortedKeys),let text=String(data:data,encoding:.utf8) else {return 1}
         print(text);return 0
     }
