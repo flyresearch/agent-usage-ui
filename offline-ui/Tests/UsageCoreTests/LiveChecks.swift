@@ -141,6 +141,19 @@ func liveChecks(_ check:(String,() throws -> Void)->Void) {
             print("{\"claude_bridge_snapshot\":true,\"fresh\":\(snapshot.fresh()),\"windows\":\(snapshot.windows.count)}")
         }
     }
+    check("fleet_refresh_interval_compatibility_persistence_and_live_override") {
+        var settings=CollectorSettings(executable:"/synthetic/collector",configuration:"/synthetic/config",stateDirectory:"/synthetic/state")
+        try require(try settings.collectionInterval()==300)
+        for seconds in CollectorSettings.refreshIntervals {
+            settings.refreshIntervalSeconds=seconds
+            let restored=try JSONDecoder().decode(CollectorSettings.self,from:JSONEncoder().encode(settings))
+            try require(try restored.collectionInterval()==Double(seconds))
+        }
+        settings.liveMetrics=true
+        try require(try settings.collectionInterval()==30)
+        settings.refreshIntervalSeconds=7
+        try rejects {_=try settings.collectionInterval()}
+    }
     if let binary=ProcessInfo.processInfo.environment["AGENT_USAGE_TEST_AGY"] {
         check("explicit_native_agy_readonly_smoke") {
             let snapshot=try AgyQuota.fetch(executable:binary)

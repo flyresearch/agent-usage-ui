@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Observation
 import UsageCore
+import TokenBarCore
 
 @MainActor @Observable final class NativeQuotaPresentation {
     var quotaEnabled=false
@@ -40,12 +41,48 @@ import UsageCore
     private var animator:TrayAnimator?
     private var task:Task<Void,Never>?
     private var quotaTask:Task<Void,Never>?
+    private var clientTask:Task<Void,Never>?
+    private var preferencesObserver:NSObjectProtocol?
+    private var clientPreferenceSignature=""
+    private var clientGraph:UsagePayload?
+    private let clientProjection=FleetUsageDataSource(selectedHost:{nil})
+
+    private func reconcileClientItems() {
+        controller?.reconcileClientItems(ClientTray.runtimePresentations(
+            graph:clientGraph,payload:animator?.quota,
+            enabled:ClientTray.enabled(),selections:ClientTray.selections(),
+            hidden:ClientRegistry.hiddenTabClients(),
+            officialClients:AgentIconView.availableOfficialClientIDs(),missingSnapshotIsTransient:true))
+    }
+    private func reconcileClientPreferences() {
+        let keys=[ClientTray.enabledKey,ClientTray.selectionsKey,ClientRegistry.tabHiddenKey,
+                  MenuBarTextColor.storageKey,MenuBarTextColor.customColorKey,
+                  MenuBarTextColor.warningColorKey,MenuBarTextColor.criticalColorKey]
+        let signature=keys.map{UserDefaults.standard.string(forKey:$0) ?? ""}.joined(separator:"|")
+        guard signature != clientPreferenceSignature else {return}
+        clientPreferenceSignature=signature;reconcileClientItems()
+    }
     func start() {
         UserDefaults.standard.register(defaults:[TrayAnimator.styleKey:"agent-usage"])
         let controller=StatusItemController();self.controller=controller
         if let icon=NSImage(systemSymbolName:"chart.bar.fill",accessibilityDescription:"Agent Usage") {controller.setStaticIcon(icon,isTemplate:true)}
         controller.updateTitle("今日 —")
         let animator=TrayAnimator(controller:controller,source:FleetUsageDataSource.shared);self.animator=animator;controller.quotaPayloadProvider = { [weak animator] in animator?.quota };animator.start()
+        animator.onQuotaUpdated={ [weak self] in self?.reconcileClientItems() }
+        preferencesObserver=NotificationCenter.default.addObserver(forName:UserDefaults.didChangeNotification,object:nil,queue:.main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.reconcileClientPreferences() }
+        }
+        clientTask=Task {
+            while !Task.isCancelled {
+                do {
+                    let result=try await FleetUsageDataSource.shared.result()
+                    clientGraph=try await clientProjection.projectGraph(result,year:nil)
+                } catch UsageError.configurationChanged {clientGraph=nil}
+                catch {if FleetUIState.shared.noCurrentData {clientGraph=nil}}
+                reconcileClientItems()
+                do {try await Task.sleep(for:.seconds(10))} catch {return}
+            }
+        }
         quotaTask=Task {
             while !Task.isCancelled {
                 await FleetUsageDataSource.shared.refreshAllQuotas()

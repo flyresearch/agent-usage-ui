@@ -72,7 +72,23 @@ final class UpdaterService: NSObject, SPUUpdaterDelegate {
 /// has no main-app service identity to register).
 @MainActor
 enum AutostartService {
-    nonisolated static var isAvailable: Bool { UpdaterService.isAvailable }
+    nonisolated static func supports(bundleURL:URL,identifier:String?) -> Bool {
+        bundleURL.pathExtension == "app" && !(identifier ?? "").isEmpty
+    }
+    nonisolated static var isAvailable: Bool {supports(bundleURL:Bundle.main.bundleURL,identifier:Bundle.main.bundleIdentifier)}
+    enum State:Sendable {case enabled,disabled,requiresApproval,unavailable}
+    nonisolated static func readState() async -> State {
+        guard isAvailable else {return .unavailable}
+        return await Task.detached(priority:.utility) {
+            switch SMAppService.mainApp.status {
+            case .enabled:return State.enabled
+            case .requiresApproval:return State.requiresApproval
+            case .notRegistered:return State.disabled
+            default:return State.unavailable
+            }
+        }.value
+    }
+    static func openSettings() {SMAppService.openSystemSettingsLoginItems()}
 
     nonisolated static func readEnabled() async -> Bool {
         await Task.detached(priority: .utility) {

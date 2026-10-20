@@ -24,7 +24,14 @@ struct FleetConnectionSettings: View {
             }
             pathField("汇总采集器", path: $draft.settings.executable, directory: false)
             Toggle("多机汇总", isOn: Binding(get: { draft.settings.fleetMode == true }, set: { draft.settings.fleetMode = $0 }))
-            Toggle("自动采集（常规五分钟，速率启用后约三十秒）", isOn: Binding(get: { draft.settings.autoRefresh != false }, set: { draft.settings.autoRefresh = $0 }))
+            Toggle("自动采集", isOn: Binding(get: { draft.settings.autoRefresh != false }, set: { draft.settings.autoRefresh = $0 }))
+            Picker("常规刷新间隔",selection:Binding(get:{draft.settings.refreshIntervalSeconds ?? 300},set:{draft.settings.refreshIntervalSeconds=$0})) {
+                ForEach(CollectorSettings.refreshIntervals,id:\.self) { seconds in
+                    Text("每 \(seconds/60) 分钟").tag(seconds)
+                }
+            }.disabled(draft.settings.autoRefresh == false)
+            Text("保存后生效。启用近期速率时自动采集改为约三十秒一次；关闭自动采集后仅手动刷新。在线额度单独刷新。")
+                .font(.caption).foregroundStyle(.secondary)
             Toggle("启用近期 tokens/min",isOn:Binding(get:{draft.settings.liveMetrics == true},set:{draft.settings.liveMetrics=$0}))
             Text("按最近十分钟已落盘的 Token 计算平均速率，包含输入、缓存与输出；不是模型生成速度。采集失败或超过 75 秒未更新时不显示为零。")
                 .font(.caption).foregroundStyle(.secondary)

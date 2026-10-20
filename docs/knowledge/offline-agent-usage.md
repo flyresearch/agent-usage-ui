@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-20
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift"]
 ---
 
 # Offline agent-usage consumer
@@ -301,8 +301,8 @@ features. Recent rate and native CLI quota are qualified separately below.
 ## Recent rate and optional native CLI quota
 
 Connection settings now carry optional `liveMetrics`, `codexQuotaEnabled` and
-`codexExecutable`, `agyQuotaEnabled` and `agyExecutable`. Defaults are disabled. Live mode changes automatic collection
-from five minutes to thirty seconds; all consumers share the existing in-flight
+`codexExecutable`, `agyQuotaEnabled` and `agyExecutable`. Defaults are disabled. Live mode overrides the configured normal collection interval
+(five minutes by default) with thirty seconds; all consumers share the existing in-flight
 collection, and failed automatic attempts also respect the cadence. A full
 collector snapshot carries a bounded recent-activity report. Ten-minute observed
 Token totals divided by ten produce tokens/min; they include input/cache/output
@@ -532,15 +532,15 @@ No row is waived merely because this installation has not used it yet.
 | R05 | Bar, heatmap, 3D, breakdown and tooltip interactions | Reused UI; complete current-build interaction acceptance pending | Light/dark rendering, mouse/trackpad/keyboard, resize and empty/partial cases |
 | R06 | Named agent/session detail and live trace grouping | Partial: main/subagent/unknown and ten-minute aggregate rates | Real per-event identity/dimensions when available, bounded trace, no inferred names or generation-speed claims |
 | R07 | All menu-bar title modes, icons, animation, color, window letters | Implemented/reused; final interaction and resource checks pending | All modes, stale transitions, source selection consistency, idle/active CPU checks |
-| R08 | Independent per-client menu-bar items | Hidden in fleet mode; pending | Add/remove/select windows, persistence, missing/expired sources, no duplicate polling |
+| R08 | Independent per-client menu-bar items | Runtime and settings connected; current-build interaction acceptance pending | Add/remove/select windows, persistence, missing/expired sources, no duplicate polling |
 | R09 | Native quota cards and provider-specific balances | Partial: Codex, Claude and Antigravity bridges | Per-provider availability matrix, allowed native/API/export mechanism, refresh/reset/error behavior and optional setup |
 | R10 | Multi-account management and explicit account selection | Pending beyond native current-account/session observations | Add/select/remove without mixing histories; native login handoff; account change during refresh and restart tests |
 | R11 | Quota history, cycles, consumption pace and forecasts | Partial: bounded seven-day observations; verified in-process Codex trends | Account/window binding, continuity across restart when trustworthy, cycle history, uncertainty and reset/backfill boundaries |
 | R12 | Subscription attribution and quota-window local usage | Pending | Explicit confirmed mapping, unassigned bucket, reversible reassignment, concurrent mapping changes and no double counting |
 | R13 | Limits/card/window visibility, ordering and source filters | Partial: source/lens controls work; some fleet settings hidden | Every retained control affects the corresponding producer/view and persists correctly |
-| R14 | Login startup and application lifecycle | Upstream service exists; fleet general-page entry replaced | Actual login registration, launch, quit/restart, duplicate-instance behavior and permission failure paths |
-| R15 | Refresh settings and background collection | Partial: fixed normal/live cadence and coalescing | User-facing interval controls, manual refresh, sleep/wake, failure cooldown and quota/history status consistency |
-| R16 | Language, appearance, popover size and accessibility | Partially reused; language entry hidden with general page | Language selection/restart, full copy coverage, contrast, focus order, VoiceOver, shortcuts and small displays |
+| R14 | Login startup and application lifecycle | Entry restored and updater gate separated; actual login-cycle acceptance pending | Actual login registration, launch, quit/restart, duplicate-instance behavior and permission failure paths |
+| R15 | Refresh settings and background collection | Configurable normal cadence and live override implemented; wake/long-run checks pending | User-facing interval controls, manual refresh, sleep/wake, failure cooldown and quota/history status consistency |
+| R16 | Language, appearance, popover size and accessibility | Language selector restored; full fleet-specific translations and interaction checks remain | Language selection/restart, full copy coverage, contrast, focus order, VoiceOver, shortcuts and small displays |
 | R17 | Optional Discord presence | Not started/exposed in fleet mode | Preserve as an explicit opt-in feature with preview, scope/privacy controls and working disable; do not enable or publish merely for testing |
 | R18 | About, version, licenses, diagnostics and help | Partial | Correct product identity/build/version, retained MIT attribution, sanitized actionable diagnostics and working help links |
 | R19 | Installation, own update channel, signing and rollback | Local ad-hoc deployment only | Independent signed/notarized release path and update feed; upgrade/rollback preserves data and never installs upstream Syrtis over this app |
@@ -614,3 +614,54 @@ calling a mechanism "native"; verify each interface's supported use separately.
 - Installation, update, preference/history preservation and rollback are proven.
 - The actual current build passes desktop interaction and seven-day operation
   acceptance. Automated capture failure is an outstanding validation item, not a pass.
+
+
+## Replacement batch 1 — desktop settings and individual items
+
+Fleet General now includes login startup and language settings alongside the
+existing connection editor. Login startup availability is based on the current
+application bundle, independently of Sparkle/update eligibility. Only an explicit
+user toggle registers/unregisters the current app with SMAppService. State is
+read back after mutations; approval-required, unavailable and failed operations
+are visible rather than assumed successful. The system login-items settings can
+be opened from the page. This batch does not turn login startup on automatically.
+
+The existing language preference/AppleLanguages override and own-bundle relaunch
+are reused; restart copy names Agent Usage and has English/Simplified/Traditional
+Chinese resources. Full translation of all earlier fleet-specific copy remains
+an R16 item. Quota history acquisition retries a busy archive at ten-second
+intervals so the new process can acquire the writer lock after the old process
+exits during a language relaunch; failed/corrupt archives are never overwritten.
+
+Connection settings add optional `refreshIntervalSeconds`, supporting 60, 300,
+900, 1800 and 3600 seconds. Old configurations retain the 300-second default.
+Live metrics use a 30-second override; disabling live metrics restores the saved
+normal cadence. Automatic collection can be disabled independently of native
+quota refresh. Changes use the existing validated save/backup workflow. Runtime
+scheduling consumes this same setting, including failure cooldown. A background
+collection loop keeps statistics active even when the main title shows quota.
+
+Individual items settings now drive the existing ClientTray/StatusItemController
+reconciliation path. Enabled clients retain independent window selections and
+routes; hidden clients are suppressed. It currently offers the quota-capable
+clients with available assets/data (Codex, Claude and agy), not fabricated balance
+items for providers lacking quotas. Missing/expired quota yields unavailable,
+not zero, and does not misclassify an explicit window as deleted merely because
+its provider snapshot is temporarily absent. Presence comes from a global fleet projection, independent of the open
+panel's machine filter. Preference changes and quota publications reapply cached
+presentations without starting separate provider queries for each item.
+
+Checks cover refresh-setting compatibility/persistence/validation, isolated
+language preferences, bundle-only login-service eligibility, actual asset-backed
+client rows, explicit window selection, hidden clients and unavailable quotas.
+`Syrtis --fleet-desktop-check` reads the current bundle/login-service state without
+registering a login item. Desktop click-through, user-chosen login registration,
+actual login-cycle launch and language-restart interaction remain separate native
+acceptance items; restoring their controls is not proof those user actions ran.
+
+Batch verification: 49 UsageCore checks (including collector integration), 31
+fleet projection/desktop checks, and the original application selftest pass.
+The packaged read-only desktop check recognizes the app bundle but reports the
+login service as unavailable on the current test machine. No registration was
+attempted, so this proves neither a successful login launch nor a registration
+failure. Login-cycle acceptance remains open. Computer Use still times out.

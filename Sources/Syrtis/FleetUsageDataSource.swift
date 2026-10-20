@@ -19,7 +19,7 @@ actor FleetUsageDataSource: UsageDataSource {
     init(selectedHost:@escaping @Sendable () -> String? = {UserDefaults.standard.string(forKey:"agentusage.selectedHost").flatMap{$0.isEmpty ? nil:$0}}) {self.selectedHost=selectedHost}
     private var lastAttempt=Date.distantPast
     private var quotaArchive:NativeQuotaArchive?
-    private var quotaArchiveAttempted=false
+    private var quotaArchiveLastAttempt:TimeInterval = -1000
     private var quotaArchiveFailed=false
     private var quotaFlights=[NativeQuotaProvider:Task<NativeQuotaSnapshot,Error>]()
     private var quotaKeys=[NativeQuotaProvider:String]()
@@ -34,7 +34,8 @@ actor FleetUsageDataSource: UsageDataSource {
         if let flight {return try await flight.value}
         // Always revalidate the current configuration through the collector.
         let config=try settings()
-        let sync=force || (config.autoRefresh != false && Date().timeIntervalSince(lastAttempt)>=(config.liveMetrics == true ? 30:300))
+        let interval=try config.collectionInterval()
+        let sync=force || (config.autoRefresh != false && Date().timeIntervalSince(lastAttempt)>=interval)
         if sync {lastAttempt=Date()}
         let task=Task.detached {try sync ? LocalCollector.refreshResult(config) : LocalCollector.restoreResult(config)}
         flight=task
@@ -242,11 +243,13 @@ actor FleetUsageDataSource: UsageDataSource {
         _=await (codex,agy,claude)
     }
     private func loadQuotaHistory() {
-        guard !quotaArchiveAttempted else {return}
-        quotaArchiveAttempted=true
+        let now=ProcessInfo.processInfo.systemUptime
+        guard quotaArchive==nil,now-quotaArchiveLastAttempt>=10 else {return}
+        quotaArchiveLastAttempt=now
         do {
             let directory=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("AgentUsageOffline/quota-history")
             quotaArchive=try NativeQuotaArchive(directory:directory)
+            quotaArchiveFailed=false
         } catch {quotaArchiveFailed=true}
     }
     func refreshQuota(provider:NativeQuotaProvider = .codex,force:Bool=false) async {

@@ -671,3 +671,7 @@
 "Pinch or ⌘ + scroll to zoom" = "捏合或按住 ⌘ 捲動可縮放";
 "Zoom to show the whole chart." = "縮放到能看到整張圖。";
 "Reset the camera angle and zoom." = "重設視角與縮放。";
+
+"Restart Agent Usage?" = "重新啟動 Agent Usage？";
+"Restart Agent Usage to apply the new language." = "重新啟動 Agent Usage 以套用新語言。";
+"Takes effect the next time Agent Usage starts." = "下次啟動 Agent Usage 時生效。";

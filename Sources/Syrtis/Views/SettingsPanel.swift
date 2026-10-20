@@ -77,6 +77,8 @@ struct SettingsPanel: View {
     @AppStorage("tokenbar.updates.beta") private var betaUpdates = false
     /// Loaded once per panel appearance without blocking SwiftUI body creation.
     @SyrtisState private var autostartEnabled = false
+    @SyrtisState private var autostartNotice: String?
+    @SyrtisState private var autostartPending = false
     /// Set only after the service accepts a user mutation, so a slower initial
     /// read cannot overwrite committed state while a failed mutation still lets
     /// that authoritative read settle the switch.
@@ -220,26 +222,31 @@ struct SettingsPanel: View {
             case .usageAttribution:
                 if FleetMode.enabled {Text("在线额度可在额度页查看；本地用量不推断订阅归属")} else {usageAttributionPage()}
             case .general:
-                if FleetMode.enabled {FleetConnectionSettings()} else {generalPage()}
+                if FleetMode.enabled {fleetGeneralPage()} else {generalPage()}
             case .about:
                 aboutPage()
             }
         }
         .task {
             guard AutostartService.isAvailable else { return }
-            let enabled = await AutostartService.readEnabled()
+            let state = await AutostartService.readState()
+            let enabled = state == .enabled
             // The query takes ~0.5-0.9s. If the user flipped the switch while it
             // was in flight, `setEnabled` has already changed the service and
             // this result is stale — applying it would leave the control showing
             // the opposite of the real state until Settings is reopened.
             guard !Task.isCancelled, !autostartMutationCommitted else { return }
             autostartEnabled = enabled
+            if FleetMode.enabled {
+                if state == .requiresApproval {autostartNotice="请在系统设置的登录项中允许 Agent Usage 启动。"}
+                else if state == .unavailable {autostartNotice="系统当前无法确认登录启动状态，可尝试启用或在系统登录项中核对。"}
+            }
         }
-        .alert("Restart Syrtis?", isPresented: $showLanguageRestartPrompt) {
+        .alert(FleetMode.enabled ? "Restart Agent Usage?".localized:"Restart Syrtis?".localized, isPresented: $showLanguageRestartPrompt) {
             Button("Later", role: .cancel) {}
             Button("Restart Now") { AppRelauncher.relaunch() }
         } message: {
-            Text("Restart Syrtis to apply the new language.")
+            Text(FleetMode.enabled ? "Restart Agent Usage to apply the new language.".localized:"Restart Syrtis to apply the new language.".localized)
         }
         .task(id: attributionInputSignature) {
             refreshAttributionSuggestions()
@@ -928,6 +935,52 @@ struct SettingsPanel: View {
     }
 
     @ViewBuilder
+    private func languageSection() -> some View {
+        section("Language") {
+            radioGroup(
+                selection: Binding(
+                    get: { languageRaw },
+                    set: { next in
+                        guard AppLanguage.requiresRelaunch(
+                            from: languageRaw, to: next)
+                        else { return }
+                        languageRaw = next
+                        AppLanguage(rawValue: next)?.apply()
+                        showLanguageRestartPrompt = true
+                    }),
+                options: AppLanguage.allCases.map { ($0.rawValue, $0.label) })
+            hint(FleetMode.enabled ? "Takes effect the next time Agent Usage starts.":"Takes effect the next time Syrtis starts.")
+        }
+    }
+
+    private func fleetGeneralPage() -> some View {
+        VStack(alignment:.leading,spacing:14) {
+            section("Startup") {
+                if AutostartService.isAvailable {
+                    toggleRow("Launch at login",isOn:Binding(get:{autostartEnabled},set:{next in
+                        guard !autostartPending else {return}
+                        autostartMutationCommitted=true;autostartPending=true;autostartNotice=nil
+                        let accepted=AutostartService.setEnabled(next)
+                        Task { @MainActor in
+                            let state=await AutostartService.readState()
+                            autostartEnabled=state == .enabled;autostartPending=false
+                            if !accepted {autostartNotice="登录启动设置未成功，请检查系统登录项。"}
+                            else if state == .requiresApproval {autostartNotice="请在系统设置的登录项中允许 Agent Usage 启动。"}
+                            else if state == .unavailable {autostartNotice="无法确认登录启动状态，请检查系统登录项。"}
+                            else if autostartEnabled != next {autostartNotice="系统登录启动状态尚未更新，请在系统设置中核对。"}
+                        }
+                    })).disabled(autostartPending)
+                    Button("打开系统登录项设置") {AutostartService.openSettings()}.font(.caption)
+                } else {Text("登录启动需要从已安装的 Agent Usage.app 运行。").font(.caption).foregroundStyle(.secondary)}
+                if let autostartNotice {Text(autostartNotice).font(.caption).foregroundStyle(.orange)}
+            }
+            languageSection()
+            Divider()
+            FleetConnectionSettings()
+        }
+    }
+
+    @ViewBuilder
     private func generalPage() -> some View {
         if AutostartService.isAvailable {
             section("Startup") {
@@ -1026,21 +1079,7 @@ struct SettingsPanel: View {
 
         cursorSyncSection()
 
-        section("Language") {
-            radioGroup(
-                selection: Binding(
-                    get: { languageRaw },
-                    set: { next in
-                        guard AppLanguage.requiresRelaunch(
-                            from: languageRaw, to: next)
-                        else { return }
-                        languageRaw = next
-                        AppLanguage(rawValue: next)?.apply()
-                        showLanguageRestartPrompt = true
-                    }),
-                options: AppLanguage.allCases.map { ($0.rawValue, $0.label) })
-            hint("Takes effect the next time Syrtis starts.")
-        }
+        languageSection()
     }
 
     /// A second (or further) Claude account isolated with `CLAUDE_CONFIG_DIR`
@@ -1381,7 +1420,7 @@ struct SettingsPanel: View {
     // MARK: - Building blocks
 
     @ViewBuilder private func section(_ label: String, @ViewBuilder content: () -> some View) -> some View {
-        if !FleetMode.enabled || !["Individual items","Agent limits","Live trace"].contains(label) {VStack(alignment: .leading, spacing: 6) {
+        if !FleetMode.enabled || !["Agent limits","Live trace"].contains(label) {VStack(alignment: .leading, spacing: 6) {
             Text(label.localized.uppercased())
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.tertiary)

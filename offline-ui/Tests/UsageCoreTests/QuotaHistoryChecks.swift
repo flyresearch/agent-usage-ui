@@ -66,9 +66,13 @@ func quotaHistoryChecks(_ check:(String,() throws -> Void)->Void) {
         let next=try snapshot(60,25);try reopened!.record(next,provider:.codex,now:next.capturedAt)
         try require(reopened!.history.points.count==2 && reopened!.history.points[0].segment != reopened!.history.points[1].segment)
         reopened=nil
+        let validArchive=try Data(contentsOf:file)
         try Data("corrupt".utf8).write(to:file)
         try rejects {_=try NativeQuotaArchive(directory:dir,now:origin)}
         try require(try String(contentsOf:file,encoding:.utf8)=="corrupt")
+        try validArchive.write(to:file)
+        let recovered=try NativeQuotaArchive(directory:dir,now:origin.addingTimeInterval(60))
+        try require(recovered.history.points.count==2)
     }
     check("quota_history_retention_and_invalid_percentage") {
         var h=NativeQuotaHistory();let s=try snapshot(0,20);h.record(s,provider:.codex,now:origin)

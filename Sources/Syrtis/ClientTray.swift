@@ -381,7 +381,8 @@ enum ClientTray {
         enabled: Set<String>,
         selections: [String: String],
         hidden: Set<String>,
-        officialClients: Set<String>
+        officialClients: Set<String>,
+        missingSnapshotIsTransient: Bool = false
     ) -> [Presentation] {
         let present = canonicalIDs(graph?.summary.clients ?? [])
         return present
@@ -400,6 +401,7 @@ enum ClientTray {
                     .first { $0.clientId == quotaClientID(for: clientId) && $0.accountKey == nil }
                 let windows = snapshot?.uniqueCardWindows ?? []
                 let selectionIsMissing = selection != autoSelection
+                    && (!missingSnapshotIsTransient || (snapshot != nil && snapshot?.error == nil))
                     && !windows.contains { $0.cardId == selection }
                 let status: Status
                 if selectionIsMissing {

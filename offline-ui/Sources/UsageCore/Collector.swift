@@ -8,6 +8,13 @@ public struct CollectorSettings: Codable, Sendable {
     public var fleetMode: Bool?
     public var autoRefresh: Bool?
     public var liveMetrics: Bool?
+    public var refreshIntervalSeconds: Int?
+    public static let refreshIntervals=[60,300,900,1800,3600]
+    public func collectionInterval() throws -> TimeInterval {
+        let seconds=refreshIntervalSeconds ?? 300
+        guard Self.refreshIntervals.contains(seconds) else {throw UsageError.configurationChanged}
+        return liveMetrics == true ? 30:TimeInterval(seconds)
+    }
     public var codexQuotaEnabled: Bool?
     public var codexExecutable: String?
     public var agyQuotaEnabled: Bool?

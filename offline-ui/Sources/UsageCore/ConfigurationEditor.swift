@@ -93,7 +93,7 @@ public enum ConfigurationEditor {
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw ConfigurationEditError.invalid }
         var settings = current
         if object["executable"] != nil || object["stateDirectory"] != nil {
-            guard Set(object.keys).isSubset(of: ["executable", "configuration", "stateDirectory", "fleetMode", "autoRefresh", "liveMetrics", "codexQuotaEnabled", "codexExecutable", "agyQuotaEnabled", "agyExecutable", "claudeQuotaEnabled", "claudeQuotaSnapshot"]) else { throw ConfigurationEditError.invalid }
+            guard Set(object.keys).isSubset(of: ["executable", "configuration", "stateDirectory", "fleetMode", "autoRefresh", "liveMetrics", "refreshIntervalSeconds", "codexQuotaEnabled", "codexExecutable", "agyQuotaEnabled", "agyExecutable", "claudeQuotaEnabled", "claudeQuotaSnapshot"]) else { throw ConfigurationEditError.invalid }
             settings = try JSONDecoder().decode(CollectorSettings.self, from: data)
         } else {
             settings.configuration = url.path
@@ -159,6 +159,7 @@ public enum ConfigurationEditor {
         for (path, data) in inputs { guard try read(URL(fileURLWithPath: path)) == data else { throw ConfigurationEditError.changed } }
     }
     public static func validate(_ draft: ConfigurationDraft) throws {
+        guard CollectorSettings.refreshIntervals.contains(draft.settings.refreshIntervalSeconds ?? 300) else {throw ConfigurationEditError.invalid}
         guard draft.settings.executable.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: draft.settings.executable),
               draft.settings.stateDirectory.hasPrefix("/"), !draft.hosts.isEmpty, draft.hosts.count <= 64,
               Set(draft.hosts.map(\.name)).count == draft.hosts.count,

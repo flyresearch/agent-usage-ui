@@ -219,3 +219,7 @@
 "Pinch or ⌘ + scroll to zoom" = "Pinch or ⌘ + scroll to zoom";
 "Zoom to show the whole chart." = "Zoom to show the whole chart.";
 "Reset the camera angle and zoom." = "Reset the camera angle and zoom.";
+
+"Restart Agent Usage?" = "Restart Agent Usage?";
+"Restart Agent Usage to apply the new language." = "Restart Agent Usage to apply the new language.";
+"Takes effect the next time Agent Usage starts." = "Takes effect the next time Agent Usage starts.";

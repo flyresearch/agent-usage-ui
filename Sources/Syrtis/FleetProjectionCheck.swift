@@ -96,8 +96,9 @@ enum FleetProjectionCheck {
             guard splitGraph.contributions[0].clients.count==2,
                 splitGraph.contributions[0].clients.first(where:{$0.client=="codex"})?.tokens.total==100 else {throw FleetSourceError.unavailable}
             try await FleetAnalysisCheck.run(oldHours:hours,newHours:codexHours,oldAgents:roles,newAgents:childRole)
-            try await checkNativeQuota(source)
-            print("{\"passed\":27,\"failed\":[]}");return 0
+            let quota=try await checkNativeQuota(source)
+            try await checkDesktop(graph:graph,quota:quota)
+            print("{\"passed\":31,\"failed\":[]}");return 0
         } catch {print("{\"passed\":0,\"failed\":[\"fleet_projection\"]}");return 1}
     }
 }
@@ -175,7 +176,7 @@ extension FleetProjectionCheck {
 
 
 extension FleetProjectionCheck {
-    static func checkNativeQuota(_ source:FleetUsageDataSource) async throws {
+    static func checkNativeQuota(_ source:FleetUsageDataSource) async throws -> AgentUsagePayload {
         let now=Date(timeIntervalSince1970:1767225600)
         func native(_ used:Double,_ minutes:Int?) throws -> NativeQuotaSnapshot {
             var row:[String:Any]=["usedPercent":used,"resetsAt":1767225660]
@@ -201,5 +202,39 @@ extension FleetProjectionCheck {
               QuotaSelectionPolicy.resolveRemainingPercent(payload:filtered,persistedSelection:explicit,excluding:[],cachedRemaining:50)==nil else {throw FleetSourceError.unavailable}
         let unknown=try await source.projectQuotas([(.agy,true,native(20,nil))],now:now)
         guard QuotaSelectionPolicy.resolveWindowLetter(payload:unknown,persistedSelection:QuotaResolver.auto,excluding:[])==nil else {throw FleetSourceError.unavailable}
+        return payload.replacingAgents(payload.agents+unknown.agents)
+    }
+}
+
+
+extension FleetProjectionCheck {
+    @MainActor static func checkDesktop(graph:UsagePayload,quota:AgentUsagePayload) throws {
+        guard AutostartService.supports(bundleURL:URL(fileURLWithPath:"/synthetic/Agent Usage.app"),identifier:"org.example.fixture"),
+              !AutostartService.supports(bundleURL:URL(fileURLWithPath:"/synthetic/cli"),identifier:"org.example.fixture"),
+              !AutostartService.supports(bundleURL:URL(fileURLWithPath:"/synthetic/App.app"),identifier:nil) else {throw FleetSourceError.unavailable}
+        let suite="agentusage-language-"+UUID().uuidString
+        let defaults=UserDefaults(suiteName:suite)!
+        defer {defaults.removePersistentDomain(forName:suite)}
+        AppLanguage.simplifiedChinese.apply(to:defaults)
+        guard defaults.stringArray(forKey:"AppleLanguages")==["zh-Hans"] else {throw FleetSourceError.unavailable}
+        AppLanguage.system.apply(to:defaults)
+        guard defaults.persistentDomain(forName:suite)?["AppleLanguages"]==nil else {throw FleetSourceError.unavailable}
+        let official=AgentIconView.availableOfficialClientIDs()
+        let rows=ClientTray.settingsRows(presentClients:["codex","claude","agy"],payload:quota,enabled:[],selections:[:],hidden:[],orderRaw:"",officialClients:official)
+        guard Set(rows.map(\.clientId))==Set(["codex","claude","agy"]) else {throw FleetSourceError.unavailable}
+        let selection=quota.agents.first{$0.clientId=="codex"}!.windows[0].cardId
+        let items=ClientTray.runtimePresentations(graph:graph,payload:quota,enabled:["codex"],selections:["codex":selection],hidden:[],officialClients:official)
+        guard items.count==1,items[0].clientId=="codex",items[0].remainingPercent==50 else {throw FleetSourceError.unavailable}
+        let hidden=ClientTray.runtimePresentations(graph:graph,payload:quota,enabled:["codex"],selections:[:],hidden:["codex"],officialClients:official)
+        guard hidden.isEmpty else {throw FleetSourceError.unavailable}
+        let offline=ClientTray.runtimePresentations(graph:graph,payload:nil,enabled:["codex"],selections:["codex":selection],hidden:[],officialClients:official,missingSnapshotIsTransient:true)
+        guard offline.count==1,offline[0].remainingPercent==nil,offline[0].status == .unavailable else {throw FleetSourceError.unavailable}
+    }
+    @MainActor static func desktopReadback() async -> Int32 {
+        _ = NSApplication.shared
+        let state=await AutostartService.readState()
+        let result:[String:Any]=["bundle_available":AutostartService.isAvailable,"login_startup_state":String(describing:state),"fleet_mode":FleetMode.enabled]
+        guard let data=try? JSONSerialization.data(withJSONObject:result,options:.sortedKeys),let text=String(data:data,encoding:.utf8) else {return 1}
+        print(text);return 0
     }
 }
