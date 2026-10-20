@@ -176,6 +176,7 @@ enum FsOperation {
 trait Backend {
     fn random_bytes(&self, length: usize) -> Result<Vec<u8>, AccountScopeError>;
     fn storage_dir(&self) -> Result<PathBuf, AccountScopeError>;
+    fn refresh_storage_dir(&self) -> Result<PathBuf, AccountScopeError> { self.storage_dir() }
     fn now_seconds(&self) -> i64;
     fn before_fs(&self, _operation: FsOperation) -> io::Result<()> {
         Ok(())
@@ -203,6 +204,13 @@ impl Backend for SystemBackend {
     fn storage_dir(&self) -> Result<PathBuf, AccountScopeError> {
         dirs::data_dir()
             .map(|path| path.join(crate::runtime_identity::directory()))
+            .ok_or(AccountScopeError::StorageUnavailable)
+    }
+
+    fn refresh_storage_dir(&self) -> Result<PathBuf, AccountScopeError> {
+        // Native provider credentials are shared with Syrtis. Their refresh
+        // mutex must remain shared even though history and metadata are not.
+        dirs::data_dir().map(|path| path.join("com.nyanako.tokenbar"))
             .ok_or(AccountScopeError::StorageUnavailable)
     }
 
@@ -914,7 +922,10 @@ fn save_atomic<B: Backend>(
 }
 
 fn ensure_storage_dir<B: Backend>(backend: &B) -> Result<PathBuf, AccountScopeError> {
-    let directory = backend.storage_dir()?;
+    ensure_selected_storage_dir(backend, backend.storage_dir()?)
+}
+
+fn ensure_selected_storage_dir<B: Backend>(backend: &B, directory: PathBuf) -> Result<PathBuf, AccountScopeError> {
     backend
         .before_fs(FsOperation::CreateDirectory)
         .map_err(|_| AccountScopeError::StorageUnavailable)?;
@@ -1360,16 +1371,19 @@ pub(crate) struct RefreshTransaction {
 pub(crate) fn begin_refresh(
     provider: &'static str,
 ) -> Result<RefreshTransaction, AccountScopeError> {
-    let backend = SystemBackend;
+    begin_refresh_with_backend(&SystemBackend, provider)
+}
+
+fn begin_refresh_with_backend<B: Backend>(backend: &B, provider: &'static str) -> Result<RefreshTransaction, AccountScopeError> {
     // Installation-key read or key-loss recovery completes before the provider
     // refresh lock is acquired. The refresh transaction keeps the existing
     // refresh-lock -> metadata-lock ordering below this point.
-    let key = ensure_installation_key(&backend, &ACCOUNT_SCOPE_PROCESS_LOCK);
-    let directory = ensure_storage_dir(&backend)?;
+    let key = ensure_installation_key(backend, &ACCOUNT_SCOPE_PROCESS_LOCK);
+    let directory = ensure_selected_storage_dir(backend, backend.refresh_storage_dir()?)?;
     let process_guard = refresh_process_lock(provider)?
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let lock_file = open_refresh_lock_file(&backend, &directory, provider)?;
+    let lock_file = open_refresh_lock_file(backend, &directory, provider)?;
     Ok(RefreshTransaction {
         provider,
         key,
@@ -1694,6 +1708,33 @@ mod tests {
     use sha2::{Digest as _, Sha256};
     use std::sync::{Arc, Barrier};
     use std::thread;
+
+    #[test]
+    fn process_namespace_keeps_provider_refresh_interoperable() {
+        let shared=SystemBackend.refresh_storage_dir().unwrap();
+        assert!(shared.ends_with("com.nyanako.tokenbar"));
+        if std::env::var("AGENT_USAGE_NATIVE_RUNTIME").as_deref()==Ok("1") {assert_ne!(SystemBackend.storage_dir().unwrap(),shared);}
+    }
+
+    #[test]
+    fn refresh_transaction_locks_shared_path_and_keeps_metadata_private() {
+        struct Split { owned:PathBuf,shared:PathBuf }
+        impl Backend for Split {
+            fn random_bytes(&self,n:usize)->Result<Vec<u8>,AccountScopeError>{Ok(vec![7;n])}
+            fn storage_dir(&self)->Result<PathBuf,AccountScopeError>{Ok(self.owned.clone())}
+            fn refresh_storage_dir(&self)->Result<PathBuf,AccountScopeError>{Ok(self.shared.clone())}
+            fn now_seconds(&self)->i64{0}
+        }
+        let temp=tempfile::tempdir().unwrap();
+        let backend=Split{owned:temp.path().join("owned"),shared:temp.path().join("shared")};
+        let transaction=begin_refresh_with_backend(&backend,"claude").unwrap();
+        assert!(backend.owned.join(INSTALLATION_KEY_FILE).exists());
+        assert!(!backend.owned.join("quota-auth-refresh-claude.lock").exists());
+        let peer=File::open(backend.shared.join("quota-auth-refresh-claude.lock")).unwrap();
+        assert!(peer.try_lock_exclusive().is_err());
+        drop(transaction);
+        peer.try_lock_exclusive().unwrap();
+    }
 
     #[derive(PartialEq, Eq)]
     struct ArtifactSnapshot {

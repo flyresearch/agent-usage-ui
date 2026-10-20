@@ -984,7 +984,7 @@ contention and no-replace publication.
 ### Current fork-integration verification
 
 The pinned engine library suite passed 1,729 checks (one upstream ignored test);
-DSH's 15 targeted checks include materialized/streaming parity. FFI passed 634
+DSH's 15 targeted checks include materialized/streaming parity. FFI passed 636
 checks (seven upstream ignored tests), including the new import and storage
 isolation checks. A separate process with the independent runtime flag exercised
 the actual history path and captured-account command builders. 60 Swift projection,
@@ -1002,3 +1002,14 @@ valid Developer ID signing identity; the current package remains locally ad-hoc
 signed. The independent updater can be configured with `AGENT_USAGE_FEED_URL`
 and `AGENT_USAGE_UPDATE_PUBLIC_KEY` at packaging time; it never inherits the
 upstream feed. Version 0.2.0 exposes its build revision in About.
+
+
+Provider refresh coordination remains shared with the original Syrtis process:
+both may refresh the same provider-owned native credential. Only the empty
+per-provider refresh locks use the upstream coordination directory; installation
+keys, identity metadata, quota history and captured-account storage stay isolated.
+The real refresh-transaction constructor is tested with split directories: the
+installation key must land in the private directory, a second file handle must
+be unable to acquire the shared refresh lock until the transaction ends, and the
+private directory must contain no competing provider lock. This prevents the
+storage-isolation change from weakening cross-process refresh serialization.

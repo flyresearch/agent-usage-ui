@@ -37,7 +37,9 @@ mod tests {
     }
     #[test]
     fn process_namespace_reaches_the_production_history_path() {
-        let expected = if independent() {
+        let enabled=std::env::var("AGENT_USAGE_NATIVE_RUNTIME").as_deref()==Ok("1");
+        assert_eq!(independent(),enabled);
+        let expected = if enabled {
             "org.flyresearch.agentusage/native-history"
         } else {
             "com.nyanako.tokenbar"

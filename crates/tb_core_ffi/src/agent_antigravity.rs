@@ -2743,7 +2743,7 @@ fn write_item_call(key: &str, value: &str) -> Option<SecurityCall> {
 #[test]
 fn process_namespace_reaches_captured_account_commands() {
     let key = "a".repeat(64);
-    let expected = if crate::runtime_identity::independent() {
+    let expected = if std::env::var("AGENT_USAGE_NATIVE_RUNTIME").as_deref()==Ok("1") {
         "org.flyresearch.agentusage.antigravity-account"
     } else {
         "com.nyanako.tokenbar.antigravity-account"
