@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-20
-sources: ["Sources/Syrtis/AgentUsageMode.swift", "Sources/Syrtis/AgentUsagePreferencesMigration.swift", "crates/tb_core_ffi/src/runtime_identity.rs", "crates/tb_core_ffi/src/native_history_import.rs", "offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "Sources/Syrtis/FleetPresentation.swift", "Sources/Syrtis/FleetPresentationCheck.swift", "Sources/Syrtis/Views/StatsView.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
+sources: ["Sources/Syrtis/NativeClaudeBridge.swift", "Sources/Syrtis/AgentUsageMode.swift", "Sources/Syrtis/AgentUsagePreferencesMigration.swift", "crates/tb_core_ffi/src/runtime_identity.rs", "crates/tb_core_ffi/src/native_history_import.rs", "offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "Sources/Syrtis/FleetPresentation.swift", "Sources/Syrtis/FleetPresentationCheck.swift", "Sources/Syrtis/Views/StatsView.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
 ---
 
 # Agent Usage: Syrtis with fleet scope
@@ -16,7 +16,9 @@ Usage now retains the full native Syrtis runtime and adds a separately selected
 fleet scope. Earlier offline-only statements below describe the fleet lane;
 they no longer prohibit the explicitly selected native lane. The independent
 collector itself remains credential-free and provider-network-free. The native
-and fleet scopes are never added together.
+and fleet scopes are never added together. Claude quota is an explicit exception:
+both scopes now use only sanitized statusLine observations, with OAuth credential
+access and model-header probes blocked before provider dispatch.
 
 
 This local fork adds a separate native app target under offline-ui. The reviewed
@@ -1040,3 +1042,41 @@ captured report to avoid moving rows during refresh, and releases that report
 on close. This removes the unbounded header that could push navigation outside
 the visible popover. Build and fleet projection checks cover compilation and
 existing data behavior; actual mouse/keyboard acceptance remains pending.
+
+
+### Claude quota credential boundary
+
+Agent Usage now replaces the native Claude OAuth provider with the existing
+sanitized Claude Code statusLine bridge. A process policy is set before GUI and
+diagnostic entry points; the Rust provider returns before extra-account discovery,
+credential reads, OAuth refresh/writeback, profile/usage HTTP calls or model-header
+probes. The original source code remains for upstream builds and regression tests,
+but is unreachable through Agent Usage's provider dispatch. Other providers retain
+their configured native behavior.
+
+Native scope reuses the configured fleet bridge until an explicit native override
+is saved. Its settings expose enable/disable and snapshot selection without requiring
+a collector configuration. Every native quota read replaces all old Claude cards
+(including extra accounts) outside the network throttle and revalidates the actual
+bounded snapshot file. Missing, corrupt, incomplete and expired observations are
+reported explicitly; disabled bridge settings remove the card. No OAuth fallback
+or credential setup prompt is offered. Cold-start tray display does not reuse an
+unattributed persistent quota scalar before the new payload arrives.
+
+The bridge supplies only the observed five-hour and seven-day windows. It does
+not provide authenticated account identity, model-specific windows or native
+account-bound history/pace curves. Log-based usage and extra scan roots are
+unchanged. Samples expire after 90 seconds without a new observation; the UI
+rechecks on quota refresh. The app does not start Claude Code or generate a model
+request to obtain a fresh sample.
+
+Regression checks exercise actual sample files through the shared decoder and
+native payload replacement (fresh, expired, partial, malformed, missing, disabled,
+configuration failure and legacy-settings fallback). Separate process tests call
+the real Rust Claude dispatch with the native identity and diagnostic privacy
+policy respectively; both must return no OAuth cards without credential access.
+
+Verification for this change: 61 Swift projection/integration checks passed,
+636 FFI tests passed (eight ignored, including the policy-only test run separately),
+both isolated policy invocations passed, and four statusLine script tests passed.
+Documentation checks passed. GUI mouse/keyboard acceptance remains deferred.

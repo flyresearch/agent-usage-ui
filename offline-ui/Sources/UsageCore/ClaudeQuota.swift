@@ -24,10 +24,10 @@ public enum ClaudeQuota {
         guard !windows.isEmpty else {throw NativeQuotaError.missingSample}
         return NativeQuotaSnapshot(capturedAt:date,windows:windows,coverageComplete:windows.count==2)
     }
-    public static func fetch(path:String) throws -> NativeQuotaSnapshot {
+    public static func fetch(path:String,now:Date=Date()) throws -> NativeQuotaSnapshot {
         guard path.hasPrefix("/"),let file=FileHandle(forReadingAtPath:path) else {throw NativeQuotaError.missingSample}
         defer {try? file.close()}
         guard let data=try file.read(upToCount:16385) else {throw NativeQuotaError.missingSample}
-        return try decode(data)
+        return try decode(data,now:now)
     }
 }

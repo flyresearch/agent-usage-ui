@@ -230,11 +230,17 @@ struct LiveUsageDataSource: UsageDataSource {
     }
 
     func agentUsage() async throws -> AgentUsagePayload {
-        try await AgentUsageThrottle.shared.payload {
+        let payload = try await AgentUsageThrottle.shared.payload {
             try await Task.detached(priority: .utility) {
                 try TBCore.agentUsage()
             }.value
         }
+        guard AgentUsageProduct.enabled else { return payload }
+        // Local observations must be revalidated even when network providers
+        // are throttled. Never restore an old OAuth Claude card on failure.
+        return try await Task.detached(priority: .utility) {
+            try await NativeClaudeBridge.replacingClaude(in: payload)
+        }.value
     }
 
     func usageTrace(windowSecs: Int64) async throws -> [TraceBucket] {

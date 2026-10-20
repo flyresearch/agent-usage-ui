@@ -3,6 +3,10 @@
 pub(crate) fn independent() -> bool {
     std::env::var("AGENT_USAGE_NATIVE_RUNTIME").as_deref() == Ok("1")
 }
+/// Set by the product entry point before every diagnostic or runtime path.
+pub(crate) fn claude_bridge_only() -> bool {
+    independent() || std::env::var("AGENT_USAGE_CLAUDE_BRIDGE_ONLY").as_deref() == Ok("1")
+}
 pub(crate) fn directory_for(independent: bool) -> &'static str {
     if independent {
         "org.flyresearch.agentusage/native-history"

@@ -299,7 +299,7 @@ final class TrayAnimator {
             payload: quota,
             persistedSelection: persistedSelection,
             excluding: ClientRegistry.quotaExcludedClients(),
-            cachedRemaining: FleetMode.enabled ? nil:cachedQuotaRemaining)
+            cachedRemaining: AgentUsageProduct.enabled ? nil:cachedQuotaRemaining)
     }
 
     /// Reconcile a successful payload with the scalar cache. A missing outer

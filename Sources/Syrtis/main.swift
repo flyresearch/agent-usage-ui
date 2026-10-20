@@ -5,10 +5,19 @@ import TokenBarCore
 // `--selftest` runs the TokenBarCore logic checks; anything else boots the
 // menu-bar app (no storyboard, no .app bundle yet).
 
+// Apply the credential boundary before diagnostic entry points as well as the GUI.
+if AgentUsageProduct.enabled {
+    guard setenv("AGENT_USAGE_CLAUDE_BRIDGE_ONLY", "1", 1) == 0 else {
+        FileHandle.standardError.write(Data("claude_privacy_policy_unavailable\n".utf8))
+        exit(1)
+    }
+}
+
 if CommandLine.arguments.contains("--agent-usage-runtime-check") {
     Task { @MainActor in
         do {
             let value:[String:Any] = ["independent_product":AgentUsageProduct.enabled,
+                "claude_quota_source":AgentUsageProduct.enabled ? "statusline-only":"upstream",
                 "scope":FleetMode.enabled ? "fleet":"native",
                 "native_source_selected":UsageDataSources.current is LiveUsageDataSource,
                 "engine_source_count":try TBCore.engineClientIds().count,

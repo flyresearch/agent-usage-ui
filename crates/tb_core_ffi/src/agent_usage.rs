@@ -2279,6 +2279,12 @@ async fn fetch_claude(id: ProviderId) -> AgentUsageSnapshot {
 /// With no extra directory configured the registry is empty, the loop body
 /// never runs, and this is the single `fetch_claude()` call it was before.
 async fn fetch_claude_accounts(id: ProviderId) -> Vec<AgentUsageSnapshot> {
+    // Agent Usage obtains Claude quota only from the official statusLine output.
+    // Return before discovering accounts, reading credentials, cache fallback,
+    // refreshing OAuth tokens, or issuing inference/header probes.
+    if crate::runtime_identity::claude_bridge_only() {
+        return Vec::new();
+    }
     let config_dirs = crate::claude_config_dirs::snapshot();
     if config_dirs.is_empty() {
         return vec![fetch_claude(id).await];
@@ -6165,6 +6171,15 @@ where
 mod tests {
     use super::*;
     use crate::agent_account_scope::test_support::TestRefreshScope;
+
+    #[tokio::test]
+    #[ignore = "requires isolated Agent Usage privacy-policy process"]
+    async fn independent_claude_fetch_has_no_credential_or_network_route() {
+        // Run with either native identity or the diagnostic privacy policy.
+        // Do not mutate the environment while other tests are running.
+        assert!(crate::runtime_identity::claude_bridge_only());
+        assert!(fetch_claude_accounts(ProviderId::Claude).await.is_empty());
+    }
 
     /// The Codex half of the #345 pairing, driven through the real loader rather
     /// than against the constant: a missing `auth.json` has to produce the exact

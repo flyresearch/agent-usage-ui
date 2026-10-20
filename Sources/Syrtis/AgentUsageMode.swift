@@ -58,6 +58,9 @@ struct AgentUsageModeSettings:View {
                 .font(.caption2).foregroundStyle(.secondary)
             Text("查看范围不影响已启用的多机后台采集。".localized).font(.caption2).foregroundStyle(.secondary)
             Text("当前：".localized+(FleetMode.enabled ? AgentUsageMode.fleet.title:AgentUsageMode.native.title)).font(.caption2)
+            Text("Claude 额度在两种范围下均仅使用 statusLine 观测；不读取或刷新 Claude 登录凭据。")
+                .font(.caption2).foregroundStyle(.secondary)
+            NativeClaudeBridgeSettings()
             AgentUsagePreferencesMigrationView()
             AgentUsageHistoryMigrationView(busy:$historyBusy)
             if !FleetMode.enabled {DisclosureGroup("多机连接配置".localized) {FleetConnectionSettings()}}

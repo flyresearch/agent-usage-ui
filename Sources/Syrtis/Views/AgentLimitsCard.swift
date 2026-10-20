@@ -866,16 +866,21 @@ struct AgentLimitsCard: View {
     /// — a value, so SelfTest can assert it; see its doc for why it does not
     /// live here as a branch.
     @ViewBuilder private func setupPrompt(_ snapshot: AgentUsageSnapshot?) -> some View {
-        switch snapshot?.setupInstructions ?? .none {
-        case .claudeSetupToken:
-            claudeSetupPrompt()
-        case .providerMessage(let detail):
-            Text(detail)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        case .none:
-            EmptyView()
+        if AgentUsageProduct.enabled, snapshot?.clientId == "claude" {
+            Text("Claude 额度仅通过 statusLine 桥接获取，请在设置中选择额度快照。")
+                .font(.caption2).foregroundStyle(.secondary)
+        } else {
+            switch snapshot?.setupInstructions ?? .none {
+            case .claudeSetupToken:
+                claudeSetupPrompt()
+            case .providerMessage(let detail):
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .none:
+                EmptyView()
+            }
         }
     }
 
