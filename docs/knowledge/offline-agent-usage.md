@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-20
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "Sources/Syrtis/FleetPresentation.swift", "Sources/Syrtis/FleetPresentationCheck.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "Sources/Syrtis/FleetPresentation.swift", "Sources/Syrtis/FleetPresentationCheck.swift", "Sources/Syrtis/Views/StatsView.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
 ---
 
 # Offline agent-usage consumer
@@ -820,3 +820,21 @@ without a usable snapshot show progress as before. These changes avoid routine
 refresh-induced collapse without fixing a misleading minimum height or disabling
 polling. Production-policy checks cover retention and invalidation boundaries;
 full mouse-interaction acceptance remains separate.
+
+
+## Stats lens shares the prepared metrics
+
+The fleet Stats summary now consumes the same actor-owned, scope-keyed report as
+the status header. It no longer filters full usage rows and computes directory
+prices twice during one SwiftUI render, nor aggregates raw token rows on the main
+actor. The report carries optional known totals and estimates plus price coverage;
+missing data remains unavailable, unknown prices remain absent, and an available
+empty scope remains a real zero. The obsolete main-actor FleetMetrics path was
+removed after checking its callers.
+
+Same-scope refreshes retain the existing summary without collapsing its grid;
+configuration/host/client/year changes invalidate that retained presentation and
+late tasks cannot publish under the new key. The original non-fleet Stats data
+path is unchanged. Production checks now verify numeric totals, priced versus
+unpriced scopes, and zero versus unavailable values in addition to the existing
+cache and refresh-retention checks. Native interaction acceptance remains open.

@@ -28,7 +28,7 @@ enum FleetPresentationCheck {
         guard old==new else {throw FleetSourceError.unavailable}
         let first=await worker.header(fleet:nil,local:priced,host:"",clients:["codex"],year:nil)
         let repeated=await worker.header(fleet:nil,local:priced,host:"",clients:["codex"],year:nil)
-        guard first==repeated,first.unallocated==7,first.note.contains("3") else {throw FleetSourceError.unavailable}
+        guard first==repeated,first.unallocated==7,first.note.contains("3"),first.total==100,first.cost != nil,first.costComplete else {throw FleetSourceError.unavailable}
 #if DEBUG
         guard await worker.headerBuildCount==1 else {throw FleetSourceError.unavailable}
 #endif
@@ -45,7 +45,7 @@ enum FleetPresentationCheck {
         let otherYear=await worker.header(fleet:nil,local:corrected,host:"",clients:["codex"],year:"2025")
         let otherAgent=await worker.header(fleet:nil,local:corrected,host:"",clients:["hermes"],year:nil)
         let missing=await worker.header(fleet:fleet,local:nil,host:"absent",clients:["codex"],year:nil)
-        guard otherYear != changed,otherAgent != changed,missing.note=="尚无当前配置的可用用量" else {throw FleetSourceError.unavailable}
+        guard otherYear != changed,otherYear.total==0,otherYear.cost==0,otherAgent != changed,otherAgent.total==7,otherAgent.cost==nil,!otherAgent.costComplete,missing.total==nil,missing.cost==nil,missing.note=="尚无当前配置的可用用量" else {throw FleetSourceError.unavailable}
         let invalidated=await worker.header(fleet:nil,local:nil,host:"",clients:["codex"],year:nil)
         guard invalidated.note=="尚无当前配置的可用用量" else {throw FleetSourceError.unavailable}
 

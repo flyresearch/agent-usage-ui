@@ -160,13 +160,3 @@ struct FleetStatusHeader:View {
         }
     }
 }
-
-@MainActor enum FleetMetrics {
-    static let catalog=try? PriceCatalog.bundled()
-    static func rows(clients:[String],year:String?) -> [UsageRow] {
-        let state=FleetUIState.shared
-        let host=UserDefaults.standard.string(forKey:"agentusage.selectedHost").flatMap{$0.isEmpty ? nil:$0}
-        let rows=state.fleet?.selected(host:host) ?? state.local?.rows ?? []
-        return rows.filter {r in clients.contains(r.agent) && (year==nil || r.day?.hasPrefix(year!+"-")==true)}
-    }
-}

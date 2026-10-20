@@ -16,6 +16,9 @@ struct FleetHeaderKey: Equatable {
 struct FleetHeaderReport: Sendable, Equatable {
     let unallocated:UInt64
     let note:String
+    var total:UInt64? = nil
+    var cost:Double? = nil
+    var costComplete=false
 }
 
 /// CPU work is actor-isolated away from SwiftUI/AppKit. The cache compares the
@@ -85,7 +88,7 @@ actor FleetPresentation {
             note=countText+"\n目录价估算："+(cost.doubleValue.map{String(format:"≈$%.2f",$0)} ?? "—")+String(format:" · 已定价 Token %.1f%%",ratio)+"\n价格版本 "+cost.version+" · 标准短上下文/5m 缓存/峰值；不等于账单或完整对话数。"
         } else {note=countText+" · 价格目录不可用"}
         let unallocated=(try? UsageSnapshot.total(all.filter{$0.day==nil}).total) ?? 0
-        let report=FleetHeaderReport(unallocated:unallocated,note:note)
+        let report=FleetHeaderReport(unallocated:unallocated,note:note,total:try? UsageSnapshot.total(rows).total,cost:cost?.doubleValue,costComplete:cost?.complete ?? false)
         if headers.count>=8 {headers.removeAll(keepingCapacity:true)}
         headers[scope]=Cached(rows:all,report:report)
         return report

@@ -25,6 +25,10 @@ struct StatsView: View {
     /// unavailable rather than as a request still in flight.
     var reportLoading = false
 
+    @AppStorage("agentusage.selectedHost") private var selectedHost=""
+    @SyrtisState private var offlineReport:FleetHeaderReport?
+    @SyrtisState private var offlineReportKey:FleetHeaderKey?
+
     private var favorite: ModelReportEntry? {
         let allow = Set(clientIds)
         return (modelReport?.modelLevelEntries ?? [])
@@ -33,32 +37,37 @@ struct StatsView: View {
     }
 
     var body: some View {
+        let state=FleetUIState.shared
+        let configuration=state.fleet?.configuration_fingerprint ?? state.local.map{$0.host_id+"|"+$0.configuration_fingerprint}
+        let available=state.fleet?.hasData(host:selectedHost.isEmpty ? nil:selectedHost) ?? (state.local != nil)
+        let key=FleetHeaderKey(revision:state.revision,host:selectedHost,clients:clientIds.sorted(),year:year,configuration:configuration,available:available)
+        let report=(offlineReportKey==key || key.canRetain(offlineReportKey)) ? offlineReport:nil
         VStack(spacing: 12) {
             UsageChartCard(
                 payload: payload, clientIds: clientIds, stats: stats, colors: colors,
                 year: year)
-            summaryCard
+            summaryCard(report)
             if !FleetMode.enabled { UsageAttributionBreakdownCard(
                 report: modelReport, reportYear: modelYear, clientIds: clientIds,
                 singleClient: singleClient, reportLoading: reportLoading) }
         }
+        .task(id:key) {
+            guard FleetMode.enabled else {return}
+            let value=await FleetPresentation.shared.header(fleet:state.fleet,local:state.local,host:key.host,clients:key.clients,year:key.year)
+            guard !Task.isCancelled,state.revision==key.revision else {return}
+            offlineReport=value;offlineReportKey=key
+        }
     }
 
-    private var offlineRows: [UsageRow] {
-        clientIds.isEmpty ? [] : FleetMetrics.rows(clients:clientIds,year:year)
-    }
-    private var offlineCost: String {
-        guard let estimate = try? FleetMetrics.catalog?.summary(offlineRows), let cost=estimate.doubleValue else {return "—"}
-        return "≈" + Format.usd(cost) + (estimate.complete ? "" : "（部分已定价）")
-    }
-    private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private func summaryCard(_ report:FleetHeaderReport?) -> some View {
+        let offlineCost=report?.cost.map { "≈" + Format.usd($0) + (report?.costComplete == true ? "":"（部分已定价）") } ?? "—"
+        let offlineTotal=report?.total.map { $0.formatted(.number.notation(.compactName)) } ?? "—"
+        return VStack(alignment: .leading, spacing: 12) {
             if FleetMode.enabled {
                 Text("目录价估算：" + offlineCost).font(.system(size:14,weight:.semibold))
             } else {
                 (Text("Your total spending is ") + Text(Format.usd(stats.totalCost)).bold().foregroundStyle(Color(hex:"#22c55e"))).font(.system(size:14))
             }
-            let offlineTotal = (try? UsageSnapshot.total(offlineRows).total).map { $0.formatted(.number.notation(.compactName)) } ?? "—"
             let metrics: [(label:String,value:String,accent:Bool)] = [
                 (FleetMode.enabled ? "已知 Token" : "Total tokens", FleetMode.enabled ? offlineTotal : Format.compactTokens(stats.totalTokens), false),
                 (FleetMode.enabled ? "目录价估算" : "Total spend", FleetMode.enabled ? offlineCost : Format.usd(stats.totalCost), true),
