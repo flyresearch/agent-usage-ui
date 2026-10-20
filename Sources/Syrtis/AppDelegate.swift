@@ -60,14 +60,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        if AgentUsageProduct.enabled && UpdaterService.isAvailable {_ = UpdaterService.shared}
-        if FleetMode.enabled {FleetRuntime.shared.start();return}
 #if DEBUG
         if TrayAnimationCPUTestConfiguration.current != nil {
             startTrayAnimationCPUTest()
             return
         }
 #endif
+        if AgentUsageProduct.enabled && UpdaterService.isAvailable {_ = UpdaterService.shared}
+        if FleetMode.enabled {FleetRuntime.shared.start();return}
+        if AgentUsageProduct.enabled && !BuildIdentity.isNonUserRuntime(CommandLine.arguments) {FleetRuntime.shared.startBackgroundCollection()}
         if !AgentUsageProduct.enabled {BetaMigration.runIfNeeded()} // before anything reads defaults
         ClientRegistry.migrateLegacyOrderKey() // fold the old limits order into the shared tab order, likewise before reads
         // refreshIntervalMin's initializer ran at AppDelegate construction in

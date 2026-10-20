@@ -38,10 +38,13 @@ struct StatsView: View {
 
     var body: some View {
         let state=FleetUIState.shared
-        let configuration=state.fleet?.configuration_fingerprint ?? state.local.map{$0.host_id+"|"+$0.configuration_fingerprint}
-        let available=state.fleet?.hasData(host:selectedHost.isEmpty ? nil:selectedHost) ?? (state.local != nil)
-        let key=FleetHeaderKey(revision:state.revision,host:selectedHost,clients:clientIds.sorted(),year:year,configuration:configuration,available:available)
-        let report=(offlineReportKey==key || key.canRetain(offlineReportKey)) ? offlineReport:nil
+        let key:FleetHeaderKey? = {
+            guard FleetMode.enabled else {return nil}
+            let configuration=state.fleet?.configuration_fingerprint ?? state.local.map{$0.host_id+"|"+$0.configuration_fingerprint}
+            let available=state.fleet?.hasData(host:selectedHost.isEmpty ? nil:selectedHost) ?? (state.local != nil)
+            return FleetHeaderKey(revision:state.revision,host:selectedHost,clients:clientIds.sorted(),year:year,configuration:configuration,available:available)
+        }()
+        let report=key.flatMap { (offlineReportKey==$0 || $0.canRetain(offlineReportKey)) ? offlineReport:nil }
         VStack(spacing: 12) {
             UsageChartCard(
                 payload: payload, clientIds: clientIds, stats: stats, colors: colors,
@@ -52,7 +55,7 @@ struct StatsView: View {
                 singleClient: singleClient, reportLoading: reportLoading) }
         }
         .task(id:key) {
-            guard FleetMode.enabled else {return}
+            guard let key else {return}
             let value=await FleetPresentation.shared.header(fleet:state.fleet,local:state.local,host:key.host,clients:key.clients,year:key.year)
             guard !Task.isCancelled,state.revision==key.revision else {return}
             offlineReport=value;offlineReportKey=key

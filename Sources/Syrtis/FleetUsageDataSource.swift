@@ -30,6 +30,20 @@ actor FleetUsageDataSource: UsageDataSource {
         let stored=try JSONDecoder().decode(CollectorSettings.self,from:Data(contentsOf:root.appendingPathComponent("connection.json")))
         return LocalCollector.reboundSettings(stored,currentExecutable:Bundle.main.url(forAuxiliaryExecutable:"agent-usage"))
     }
+    /// Native views must not stop an explicitly configured fleet schedule.
+    /// No report subprocess is started merely to wait for the next due time.
+    func backgroundRefreshIfNeeded() async {
+        let root=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
+        guard FileManager.default.fileExists(atPath:root.appendingPathComponent("AgentUsageOffline/connection.json").path) else {return}
+        do {
+            let config=try settings()
+            guard try config.automaticCollectionDue(since:lastAttempt) else {return}
+            _=try await result()
+        } catch {
+            await MainActor.run {FleetUIState.shared.error="后台采集失败，保留上次成功结果"}
+        }
+    }
+
     func result(force:Bool=false) async throws -> CollectionResult {
         if let flight {return try await flight.value}
         // Always revalidate the current configuration through the collector.

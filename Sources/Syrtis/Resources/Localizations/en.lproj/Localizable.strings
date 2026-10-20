@@ -264,3 +264,5 @@
 "独立更新渠道尚未配置；当前版本使用手动更新，不连接 Syrtis 的更新源。" = "The independent update channel is not configured. Use manual updates; the Syrtis update feed is not used.";
 
 "Agent Usage 基于 Syrtis v2.9.0 的 MIT 许可 UI 进行修改，接入独立 collector/fleet。上游作者与第三方版权声明随应用保留。" = "Agent Usage extends the MIT-licensed Syrtis v2.9.0 UI with an independent collector and fleet scope. Upstream and third-party notices are included.";
+
+"查看范围不影响已启用的多机后台采集。" = "The selected view does not stop enabled background fleet collection.";

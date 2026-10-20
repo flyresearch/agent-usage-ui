@@ -26,6 +26,7 @@ final class UpdaterService: NSObject, SPUUpdaterDelegate {
     nonisolated static var isAvailable: Bool {
         guard Bundle.main.bundleURL.pathExtension=="app" else {return false}
         if !AgentUsageProduct.enabled {return true}
+        guard !BuildIdentity.isNonUserRuntime(CommandLine.arguments) else {return false}
         return independentFeedAllowed(identifier:Bundle.main.bundleIdentifier,
             feed:Bundle.main.object(forInfoDictionaryKey:"SUFeedURL") as? String,
             publicKey:Bundle.main.object(forInfoDictionaryKey:"SUPublicEDKey") as? String)

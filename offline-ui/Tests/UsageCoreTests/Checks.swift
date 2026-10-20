@@ -27,6 +27,19 @@ func decodeFleet(_ value:[String:Any]) throws ->FleetSnapshot {try FleetSnapshot
     static func main() throws {
         var passed=0;var failures=[String]()
         func check(_ name:String,_ body:() throws ->Void) {do {try body();passed+=1} catch {failures.append(name)}}
+        check("background_collection_respects_opt_out_and_cadence") {
+            var config=CollectorSettings(executable:"/fixture/collector",configuration:"/fixture/config",stateDirectory:"/fixture/state")
+            let last=Date(timeIntervalSince1970:1000)
+            try require(!config.automaticCollectionDue(since:last,now:last.addingTimeInterval(299)))
+            try require(config.automaticCollectionDue(since:last,now:last.addingTimeInterval(300)))
+            config.liveMetrics=true
+            try require(!config.automaticCollectionDue(since:last,now:last.addingTimeInterval(29)))
+            try require(config.automaticCollectionDue(since:last,now:last.addingTimeInterval(30)))
+            config.autoRefresh=false
+            try require(!config.automaticCollectionDue(since:last,now:last.addingTimeInterval(900)))
+            config.refreshIntervalSeconds=7
+            try rejects {_=try config.automaticCollectionDue(since:last)}
+        }
         check("menu_date_scope_and_unallocated") {
             let snapshot=try decode(fixture())
             let now=ISO8601DateFormatter().date(from:"2025-12-31T16:30:00Z")!

@@ -15,6 +15,10 @@ public struct CollectorSettings: Codable, Sendable {
         guard Self.refreshIntervals.contains(seconds) else {throw UsageError.configurationChanged}
         return liveMetrics == true ? 30:TimeInterval(seconds)
     }
+    public func automaticCollectionDue(since lastAttempt:Date,now:Date=Date()) throws -> Bool {
+        let interval=try collectionInterval()
+        return autoRefresh != false && now.timeIntervalSince(lastAttempt)>=interval
+    }
     public var codexQuotaEnabled: Bool?
     public var codexExecutable: String?
     public var agyQuotaEnabled: Bool?

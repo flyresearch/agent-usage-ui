@@ -56,6 +56,7 @@ struct AgentUsageModeSettings:View {
             }.disabled(historyBusy)
             Text("本机保留 Syrtis 原版来源、账号、额度、归属与会话功能，并按原生账号配置查询额度。多机使用独立 collector 汇总已配置机器；两种范围不相加。切换后重启生效。".localized)
                 .font(.caption2).foregroundStyle(.secondary)
+            Text("查看范围不影响已启用的多机后台采集。".localized).font(.caption2).foregroundStyle(.secondary)
             Text("当前：".localized+(FleetMode.enabled ? AgentUsageMode.fleet.title:AgentUsageMode.native.title)).font(.caption2)
             AgentUsagePreferencesMigrationView()
             AgentUsageHistoryMigrationView(busy:$historyBusy)

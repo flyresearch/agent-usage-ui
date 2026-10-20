@@ -47,9 +47,20 @@ import TokenBarCore
     private var task:Task<Void,Never>?
     private var quotaTask:Task<Void,Never>?
     private var clientTask:Task<Void,Never>?
+    private var backgroundTask:Task<Void,Never>?
     private var preferencesObserver:NSObjectProtocol?
     private var clientPreferenceSignature=""
     private var clientIDs:[String]=[]
+
+    func startBackgroundCollection() {
+        guard !FleetMode.enabled,backgroundTask==nil else {return}
+        backgroundTask=Task {
+            while !Task.isCancelled {
+                await FleetUsageDataSource.shared.backgroundRefreshIfNeeded()
+                do {try await Task.sleep(for:.seconds(10))} catch {return}
+            }
+        }
+    }
 
     private func reconcileClientItems() {
         controller?.reconcileClientItems(ClientTray.runtimePresentations(

@@ -1013,3 +1013,18 @@ installation key must land in the private directory, a second file handle must
 be unable to acquire the shared refresh lock until the transaction ends, and the
 private directory must contain no competing provider lock. This prevents the
 storage-isolation change from weakening cross-process refresh serialization.
+
+
+Configured automatic collection continues while native views are selected. A
+native-only background loop checks the saved due-time/opt-out policy without
+starting report subprocesses between collections; fleet mode keeps its existing
+single collection loop. The same collector actor enforces flight coalescing and
+failure cooldown. Native Stats does not subscribe to the unused fleet projection,
+so background publications do not redraw it. Missing configuration and disabled
+auto-refresh never start collection. Deterministic checks cover normal/live
+cadence boundaries, opt-out and invalid settings.
+
+The automatic scheduler is excluded from demo/diagnostic runs, and the animation
+CPU-test entry returns before runtime services start. Independent update checks
+are likewise unavailable in non-user runs. Core checks, including real collector
+integration, pass 52 cases after adding the scheduler policy check.
