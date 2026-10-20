@@ -4,7 +4,7 @@ id: offline-agent-usage
 kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
-last_verified: 2026-10-19
+last_verified: 2026-10-20
 sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift"]
 ---
 
@@ -496,3 +496,121 @@ selftest and offscreen rendering checks; Computer Use has reported timeouts and 
 
 Primary release references: [2.8.0](https://github.com/Nanako0129/syrtis/releases/tag/v2.8.0)
 and [2.9.0](https://github.com/Nanako0129/syrtis/releases/tag/v2.9.0).
+
+
+## Full Syrtis replacement program
+
+### Product decision — 2026-10-20
+
+The target is now a complete daily-use replacement for Syrtis, not a reduced
+fleet dashboard or a first-usable MVP. Preserve reasonable user capabilities,
+including optional integrations, while keeping the independent bundle, local
+collector, provenance and explicit partial-coverage behavior. A safer mechanism
+may replace an upstream mechanism; it must still deliver the user capability.
+Hiding a feature, exposing an unsupported placeholder, or having an unused
+upstream implementation in the repository does not constitute replacement.
+
+The first fixed comparison baseline is upstream Syrtis v2.9.0 (`ed3fae7`).
+Review later releases as explicit baseline updates rather than moving the finish
+line silently. Existing v2.7 fork behavior, v2.8/v2.9 additions, settings pages,
+context menus, keyboard shortcuts and background behavior are all in scope.
+The earlier first-usable ledger remains historical evidence, not the completion
+criterion for this replacement program.
+
+### Capability ledger
+
+Status below is intentionally conservative. "Partial" includes implemented
+behavior whose semantics, data coverage or real interaction proof is incomplete.
+No row is waived merely because this installation has not used it yet.
+
+| ID | Capability to retain | Present state / gap | Acceptance evidence |
+|---|---|---|---|
+| R01 | All upstream supported usage sources | Partial: six source families in the independent collector; DSH and remaining adapters pending | One row per upstream source with format/revision, actual adapter tests and qualification status; icon/registry presence is not parser support |
+| R02 | Source discovery, additional roots, import/sync workflows | Partial: explicit local/SSH configuration works; upstream discovery and import paths need classification | Bounded discovery, preview/selection, overlap rejection, errors and source-specific import checks |
+| R03 | Tokens, metered calls, models, costs and date attribution | Partial: known totals and estimates implemented; original counts/attribution may differ | Reconciliation fixtures and real-source comparisons; distinguish estimates, billed spend, unknown counts and missing dates |
+| R04 | Overview, models, daily/monthly/hourly, Stats and Agents lenses | Partial: all tabs exist; some data dimensions are narrower | Every metric/filter/drilldown mapped to a real data path; no placeholder values presented as measured values |
+| R05 | Bar, heatmap, 3D, breakdown and tooltip interactions | Reused UI; complete current-build interaction acceptance pending | Light/dark rendering, mouse/trackpad/keyboard, resize and empty/partial cases |
+| R06 | Named agent/session detail and live trace grouping | Partial: main/subagent/unknown and ten-minute aggregate rates | Real per-event identity/dimensions when available, bounded trace, no inferred names or generation-speed claims |
+| R07 | All menu-bar title modes, icons, animation, color, window letters | Implemented/reused; final interaction and resource checks pending | All modes, stale transitions, source selection consistency, idle/active CPU checks |
+| R08 | Independent per-client menu-bar items | Hidden in fleet mode; pending | Add/remove/select windows, persistence, missing/expired sources, no duplicate polling |
+| R09 | Native quota cards and provider-specific balances | Partial: Codex, Claude and Antigravity bridges | Per-provider availability matrix, allowed native/API/export mechanism, refresh/reset/error behavior and optional setup |
+| R10 | Multi-account management and explicit account selection | Pending beyond native current-account/session observations | Add/select/remove without mixing histories; native login handoff; account change during refresh and restart tests |
+| R11 | Quota history, cycles, consumption pace and forecasts | Partial: bounded seven-day observations; verified in-process Codex trends | Account/window binding, continuity across restart when trustworthy, cycle history, uncertainty and reset/backfill boundaries |
+| R12 | Subscription attribution and quota-window local usage | Pending | Explicit confirmed mapping, unassigned bucket, reversible reassignment, concurrent mapping changes and no double counting |
+| R13 | Limits/card/window visibility, ordering and source filters | Partial: source/lens controls work; some fleet settings hidden | Every retained control affects the corresponding producer/view and persists correctly |
+| R14 | Login startup and application lifecycle | Upstream service exists; fleet general-page entry replaced | Actual login registration, launch, quit/restart, duplicate-instance behavior and permission failure paths |
+| R15 | Refresh settings and background collection | Partial: fixed normal/live cadence and coalescing | User-facing interval controls, manual refresh, sleep/wake, failure cooldown and quota/history status consistency |
+| R16 | Language, appearance, popover size and accessibility | Partially reused; language entry hidden with general page | Language selection/restart, full copy coverage, contrast, focus order, VoiceOver, shortcuts and small displays |
+| R17 | Optional Discord presence | Not started/exposed in fleet mode | Preserve as an explicit opt-in feature with preview, scope/privacy controls and working disable; do not enable or publish merely for testing |
+| R18 | About, version, licenses, diagnostics and help | Partial | Correct product identity/build/version, retained MIT attribution, sanitized actionable diagnostics and working help links |
+| R19 | Installation, own update channel, signing and rollback | Local ad-hoc deployment only | Independent signed/notarized release path and update feed; upgrade/rollback preserves data and never installs upstream Syrtis over this app |
+| R20 | Preference/history migration and uninstall | Partial private backups; no complete migration flow | Previewed reversible migration, separate identities/stores, stable installed path, cleanup choices and original app retained until cutover |
+| R21 | Fleet aggregation, coverage diagnostics and graphical config | Added capability, must not regress | Four-host fresh/stale/offline recovery, WAL visibility, config fencing, correct totals and private rollback |
+| R22 | Reliable daily operation and complete interaction acceptance | Partial; Computer Use capture currently blocked | Current-build manual or automated evidence for each critical flow, multi-day operation and recovery, not just process/build success |
+
+R01/R09 must be expanded into per-source/per-provider rows before claiming full
+coverage. Start from the pinned upstream scanner/provider implementations and
+compare them to ClientRegistry, rather than treating every registry icon as an
+implemented integration. An uninstalled source stays "not qualified"; synthetic
+fixtures alone do not establish live acceptance.
+
+### Delivery sequence
+
+1. **Everyday settings and desktop behavior (R07/R08/R13–R16).** Restore the
+   fleet general settings surface, login startup, language and refresh controls;
+   then enable independent client menu-bar items and remaining visibility controls.
+   Reuse existing services after verifying the independent bundle identity and
+   fleet data path. Do not expose a toggle whose runtime is still disconnected.
+2. **Accounting and account scope (R03/R06/R09–R12).** Add explicit account/profile
+   identity and reversible subscription attribution, then window-local usage and
+   durable account-bound history. Native login/API/export paths remain separate
+   from local session collection. Unknown scope must stay unassigned.
+3. **Source/provider completeness (R01/R02/R09).** Inventory every upstream
+   adapter and quota provider, land DSH and remaining sources in reviewed batches,
+   and test parsing/dedup/WAL/import behavior on their supported platforms. Usage
+   collection and balance querying are separate acceptance items.
+4. **Optional integration and distribution (R17–R20).** Restore optional presence,
+   diagnostics/help, migration and an independent update/release workflow. Signing
+   credentials or provider access needed later are concrete external dependencies,
+   not reasons to leave unrelated work unfinished.
+5. **Replacement acceptance (R04/R05/R21/R22 plus all previous rows).** Run the
+   full desktop test matrix, verify the new build as the primary daily app for at
+   least seven days with the four-host fleet, and exercise offline/restart/wake/
+   account-switch/update/rollback scenarios. Extend observation after material
+   fixes rather than counting an older build's trial as current acceptance.
+
+Each batch records implementation, regression evidence, native validation and
+remaining limitations separately. Upstream maintenance continues via pinned,
+license-reviewed selective ports rather than a broad merge of credential and
+update initializers.
+
+### What "reasonable" means
+
+The default is retention: an upstream user-facing capability remains in the
+ledger, including optional appearance and integration features. Lack of current
+use, implementation difficulty or absence of an official endpoint does not
+silently remove it. Where an interface is unavailable, record the blocked
+capability and investigate supported alternatives; it is not complete until a
+working equivalent or an explicitly agreed exception exists.
+
+Implementation details are not mandatory to preserve: copying another app's
+credentials, using its update feed, silently initializing network services,
+presenting missing data as zero, or guessing subscription/account attribution
+must not become dependencies of replacement. Replace those mechanisms while
+preserving the legitimate outcome. No blanket compliance claim is implied by
+calling a mechanism "native"; verify each interface's supported use separately.
+
+### Completion / cutover gate
+
+- Every reasonable capability has an accountable ledger row and passes its
+  defined checks, or has a specific user-agreed exception; no percentage-complete
+  proxy or hidden menu is accepted as proof.
+- No routine user workflow requires keeping Syrtis running to fill a missing
+  function. Original Syrtis may remain installed for rollback until explicit cutover.
+- No unexplained loss/double count across source, host, account, time and model
+  dimensions; partial coverage remains visible rather than manufactured away.
+- Data/credentials/private operational configuration stay outside Git and
+  diagnostics; optional outbound integrations remain off until deliberately enabled.
+- Installation, update, preference/history preservation and rollback are proven.
+- The actual current build passes desktop interaction and seven-day operation
+  acceptance. Automated capture failure is an outstanding validation item, not a pass.
