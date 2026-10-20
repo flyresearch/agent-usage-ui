@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-20
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "Sources/Syrtis/FleetPresentation.swift", "Sources/Syrtis/FleetPresentationCheck.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
 ---
 
 # Offline agent-usage consumer
@@ -760,3 +760,45 @@ not supported by ImageRenderer, so this only verifies text layout and contrast.
 The 36 fleet projection checks, original application selftest and documentation
 checks pass. Click-through
 acceptance remains separate from these checks.
+
+
+## Menu and header projection performance
+
+The fleet menu loop no longer constructs a full MenuSummary on the main actor.
+`FleetPresentation` performs the selected title calculation on its own actor,
+computes the current day once per update, and skips unused totals/groupings.
+Live-rate and native-quota freshness semantics remain unchanged. A preference
+change during an awaited title calculation prevents publishing the old mode.
+
+The header's price/count/unallocated-date projection runs asynchronously through
+that same worker. SwiftUI renders a prepared report instead of scanning and
+pricing rows in `body`. An eight-entry scope cache includes host, client set and
+year, and compares full UsageRow values before reuse, including counts and token
+buckets. It does not assume timestamps uniquely identify data. Missing data is
+checked before cache lookup. SwiftUI task cancellation and the publication key
+prevent late results from appearing under a different filter or configuration.
+The collector still revalidates configuration on every result; this display cache
+never bypasses collection/configuration checks.
+
+Independent client items now receive only a deduplicated client-ID list. Their
+existing window/visibility policy is shared with the graph-based entry point,
+which remains available for the original upstream runtime. The background loop
+continues to drive collection, but no longer prices/serializes all historical
+chart contributions merely to learn which clients are present.
+
+Synthetic production-path checks cover midnight rollover, total versus daily
+selection, unknown costs, client-presentation parity, repeated cache reads,
+same-timestamp corrections, filter changes and missing/configuration-invalidated
+data. Set `AGENT_USAGE_PRESENTATION_BENCHMARK=1` on `--fleet-projection-check`
+to report five-run medians for 10,000-row menu pricing, warm header lookup and
+client-ID extraction. These timings are not end-to-end mouse latency evidence.
+
+
+Local debug verification: 44 fleet projection checks, 51 UsageCore checks with
+real collector integration, and the original application selftest passed. Debug
+checks count header builds to verify cache hits really skip computation and a
+same-timestamp correction forces recomputation. Five-run 10,000-row medians:
+menu pricing 70.164 ms, warm header lookup 1.749 ms, client-ID extraction 2.384 ms.
+The header benchmark re-decodes equivalent snapshots outside each timed section,
+so it cannot win solely through Array storage identity. All three measured paths
+execute on the presentation actor; these are not main-thread or click timings.

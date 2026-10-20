@@ -20,11 +20,11 @@ public struct Tokens: Codable, Equatable, Sendable {
 private func checked(_ values: [UInt64]) throws -> UInt64 {
     try values.reduce(0) { a,b in let (sum,overflow)=a.addingReportingOverflow(b); if overflow {throw UsageError.overflow}; return sum }
 }
-public struct UsageInterval: Codable, Sendable {
+public struct UsageInterval: Codable, Sendable, Equatable {
     public let start: String?
     public let end: String?
 }
-public struct UsageRow: Codable, Identifiable, Sendable {
+public struct UsageRow: Codable, Identifiable, Sendable, Equatable {
     public let messages:MessageCount?
     public let source_id: String
     public let agent: String

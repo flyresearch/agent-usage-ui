@@ -48,7 +48,7 @@ actor FleetUsageDataSource: UsageDataSource {
         } catch {
             await MainActor.run {
                 FleetUIState.shared.error="采集或配置读取失败，无法确认当前状态"
-                if case UsageError.configurationChanged=error {FleetUIState.shared.fleet=nil;FleetUIState.shared.local=nil}
+                if case UsageError.configurationChanged=error {FleetUIState.shared.fleet=nil;FleetUIState.shared.local=nil;FleetUIState.shared.revision=UUID()}
             }
             throw error
         }

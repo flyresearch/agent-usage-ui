@@ -384,7 +384,17 @@ enum ClientTray {
         officialClients: Set<String>,
         missingSnapshotIsTransient: Bool = false
     ) -> [Presentation] {
-        let present = canonicalIDs(graph?.summary.clients ?? [])
+        runtimePresentations(clients:graph?.summary.clients ?? [],payload:payload,enabled:enabled,
+            selections:selections,hidden:hidden,officialClients:officialClients,
+            missingSnapshotIsTransient:missingSnapshotIsTransient)
+    }
+
+    static func runtimePresentations(
+        clients:[String], payload:AgentUsagePayload?, enabled:Set<String>,
+        selections:[String:String], hidden:Set<String>, officialClients:Set<String>,
+        missingSnapshotIsTransient:Bool = false
+    ) -> [Presentation] {
+        let present = canonicalIDs(clients)
         return present
             .filter { enabled.contains($0) && officialClients.contains($0) && !hidden.contains($0) }
             .sorted()
