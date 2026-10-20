@@ -5,7 +5,7 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-20
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift"]
+sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
 ---
 
 # Offline agent-usage consumer
@@ -693,3 +693,41 @@ Registration/unregistration is qualified on the local build, independently of
 login-cycle launch. Actual logout/login, language-switch click-through and menu
 interaction acceptance remain open; Computer Use still times out. Do not report
 these as tested simply because registration succeeds.
+
+
+## Quota-history responsiveness regression
+
+A live main-thread sample identified a quadratic view computation: the history
+filter resolved `window` for every observation, and `window` rebuilt the complete
+window-ID set each time. Several computed properties repeated that filter during
+one render. The archive did not need to reach its cap to saturate a CPU core.
+
+`QuotaHistoryPresentation` now resolves window IDs/titles and the selected key
+once, filters once, and projects chart samples/trend once per view update. The
+SwiftUI body consumes those values. An equatable chart subtree skips rebuilding
+unchanged marks on the five-second stale-label clock. Historical observations,
+selection fallback, time bounds, segmentation and full-sample trend semantics are
+preserved; only plot points remain bounded to the existing 720-plus-endpoint cap.
+
+Production-projection tests exercise 10,000 observations, multiple windows,
+fallback/expired selections, endpoint retention and trend parity. With
+`AGENT_USAGE_HISTORY_BENCHMARK=1`, UsageCoreCheck reports twenty warm projections
+and a bounded reconstruction of the old getter dependency on the same 1,000-point
+input; the old/new visible arrays must match. The optional benchmark requires
+P95 below 100 ms for the full 10,000-point projection. It is not a parser oracle
+or a claim about click latency. Append `--stress-history` to the native history
+preview command to render the real SwiftUI/Charts view with 10,000 synthetic
+observations, in both appearances, and report rendering time.
+
+Local debug-build measurements with realistically sized window keys: full
+10,000-point projection median 4.304 ms / P95 4.472 ms; the 1,000-point comparison
+was 237.399 ms for the old filter versus 0.446 ms for the new complete projection,
+with equal visible results. Rendering the actual full-capacity SwiftUI history
+view plus PNG encoding took 103.025 ms in light appearance and 45.897 ms in dark
+appearance; both exported images were visually checked. A pre-fix live process
+consumed about one core and
+its sampled main thread was entirely inside the history computation. After the
+fix, a short process observation was roughly 3–6% CPU, and a separate main-thread
+sample was mostly waiting for events. These are bounded observations, not proof
+of every interaction or long-run scenario; Computer Use still timed out. Private
+samples and live archives remain outside the repository.

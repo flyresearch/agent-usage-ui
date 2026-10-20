@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 
-public struct QuotaObservation: Codable, Identifiable, Sendable {
+public struct QuotaObservation: Codable, Identifiable, Sendable, Equatable {
     public var id:String
     public var provider:String
     public var window:String

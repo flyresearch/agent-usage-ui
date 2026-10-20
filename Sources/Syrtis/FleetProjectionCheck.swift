@@ -160,13 +160,27 @@ extension FleetProjectionCheck {
                 if i==9 {history.breakContinuity(.codex)}
                 history.record(snapshot,provider:.codex,now:snapshot.capturedAt);latest=snapshot
             }
+            var points=history.points
+            if CommandLine.arguments.contains("--stress-history") {
+                let segment=UUID().uuidString
+                let rows=(0..<10000).map { i -> [String:Any] in
+                    ["id":UUID().uuidString,"provider":"codex","window":latest!.windows[0].id,
+                     "title":"Synthetic full archive","time":now.timeIntervalSinceReferenceDate-Double(9999-i)*5,
+                     "used":Double(i)*0.008,"reset":now.timeIntervalSinceReferenceDate+3600,
+                     "duration":300,"segment":segment,"continuous":true]
+                }
+                points=try JSONDecoder().decode([QuotaObservation].self,from:JSONSerialization.data(withJSONObject:rows))
+            }
             for dark in [false,true] {
-                let view=FleetQuotaHistoryView(points:history.points,provider:.codex,snapshot:latest,now:now)
+                let view=FleetQuotaHistoryView(points:points,provider:.codex,snapshot:latest,now:now)
                     .padding(16).frame(width:PopoverChrome.width)
                     .background(dark ? Color(red:0.13,green:0.13,blue:0.14):Color(red:0.96,green:0.96,blue:0.97))
                     .environment(\.colorScheme,dark ? .dark:.light)
+                let started=ProcessInfo.processInfo.systemUptime
                 let renderer=ImageRenderer(content:view);renderer.scale=2
                 guard let image=renderer.cgImage,let data=NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:]) else {return 1}
+                let elapsed=(ProcessInfo.processInfo.systemUptime-started)*1000
+                print(String(format:"{\"history_render_points\":%d,\"dark\":%@,\"render_ms\":%.3f}",points.count,dark ? "true":"false",elapsed))
                 try data.write(to:URL(fileURLWithPath:directory).appendingPathComponent("quota-history-\(dark ? "dark":"light").png"))
             }
             return 0

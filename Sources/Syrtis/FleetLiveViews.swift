@@ -123,18 +123,8 @@ struct FleetQuotaHistoryView: View {
     let now:Date
     @SyrtisState private var days=1
     @SyrtisState private var selectedWindow=""
-    private var windowIDs:[String] {Array(Set(points.map(\.window))).sorted()}
-    private var window:String {windowIDs.contains(selectedWindow) ? selectedWindow:points.last?.window ?? ""}
-    private var visible:[QuotaObservation] {
-        points.filter{$0.window==window && $0.time>=now.addingTimeInterval(-Double(days)*86400) && $0.time<=now}
-    }
-    private var plotted:[QuotaObservation] {
-        let values=visible,step=max(1,Int(ceil(Double(values.count)/720)))
-        var result=stride(from:0,to:values.count,by:step).map{values[$0]}
-        if let last=values.last,result.last?.id != last.id {result.append(last)}
-        return result
-    }
     var body:some View {
+        let report=QuotaHistoryPresentation(points:points,selectedWindow:selectedWindow,days:days,now:now)
         VStack(alignment:.leading,spacing:8) {
             HStack {
                 Text("额度历史").font(.caption.bold())
@@ -156,39 +146,26 @@ struct FleetQuotaHistoryView: View {
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 FlowLayout(hSpacing:6,vSpacing:4) {
-                    ForEach(windowIDs,id:\.self) { id in
+                    ForEach(report.windowIDs,id:\.self) { id in
                         Button {selectedWindow=id} label: {
-                            Text(points.last{$0.window==id}?.title ?? "额度窗口")
-                                .font(.caption2.weight(window==id ? .semibold:.regular))
+                            Text(report.titles[id] ?? "额度窗口")
+                                .font(.caption2.weight(report.selectedWindow==id ? .semibold:.regular))
                                 .padding(.horizontal,7).padding(.vertical,5)
-                                .foregroundStyle(window==id ? Color.accentColor:Color.secondary)
-                                .background(window==id ? Color.accentColor.opacity(0.12):Color.primary.opacity(0.04),in:RoundedRectangle(cornerRadius:5))
-                        }.buttonStyle(.plain).accessibilityAddTraits(window==id ? .isSelected:[])
+                                .foregroundStyle(report.selectedWindow==id ? Color.accentColor:Color.secondary)
+                                .background(report.selectedWindow==id ? Color.accentColor.opacity(0.12):Color.primary.opacity(0.04),in:RoundedRectangle(cornerRadius:5))
+                        }.buttonStyle(.plain).accessibilityAddTraits(report.selectedWindow==id ? .isSelected:[])
                     }
                 }
-                if visible.isEmpty {
+                if report.visible.isEmpty {
                     Text("所选时间范围内没有观测。").font(.caption).foregroundStyle(.secondary)
                 } else {
-                    Chart(plotted) { point in
-                        if point.continuous {
-                            LineMark(x:.value("时间",point.time),y:.value("已用百分比",point.used),series:.value("连续采集段",point.segment))
-                                .foregroundStyle(Color.accentColor.opacity(0.75))
-                        }
-                        PointMark(x:.value("时间",point.time),y:.value("已用百分比",point.used))
-                            .foregroundStyle(Color.accentColor).symbolSize(12)
-                    }
-                    .chartYScale(domain:0...100)
-                    .chartYAxis {AxisMarks(values:[0,50,100]) { value in
-                        AxisGridLine();AxisValueLabel {if let v=value.as(Int.self) {Text("\(v)%")}}
-                    }}
-                    .chartXAxis {AxisMarks(values:.automatic(desiredCount:3))}
-                    .chartLegend(.hidden).frame(height:115)
-                    Text("\(visible.count) 次观测 · 最近 "+visible.last!.time.formatted(date:.abbreviated,time:.shortened))
+                    FleetQuotaHistoryChart(points:report.plotted).equatable()
+                    Text("\(report.visible.count) 次观测 · 最近 "+report.visible.last!.time.formatted(date:.abbreviated,time:.shortened))
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 if let snapshot,snapshot.fresh(at:now),
-                   let last=visible.last,last.time==snapshot.capturedAt,
-                   let trend=NativeQuotaHistory.trend(visible,now:now) {
+                   let last=report.visible.last,last.time==snapshot.capturedAt,
+                   let trend=report.trend {
                     Text(String(format:"近期净增 %.1f 个百分点／小时",trend.percentagePointsPerHour))
                         .font(.caption.monospacedDigit())
                     if last.used>=100 {
@@ -210,5 +187,28 @@ struct FleetQuotaHistoryView: View {
             Text("仅保留本机最近 7 天观测。账号变化、重置、回落、重启及采集中断分段显示，不跨段推算。")
                 .font(.caption2).foregroundStyle(.secondary)
         }
+    }
+}
+
+
+/// Clock ticks update stale labels but do not rebuild an unchanged chart.
+private struct FleetQuotaHistoryChart: View, Equatable {
+    let points:[QuotaObservation]
+    var body:some View {
+                    Chart(points) { point in
+                        if point.continuous {
+                            LineMark(x:.value("时间",point.time),y:.value("已用百分比",point.used),series:.value("连续采集段",point.segment))
+                                .foregroundStyle(Color.accentColor.opacity(0.75))
+                        }
+                        PointMark(x:.value("时间",point.time),y:.value("已用百分比",point.used))
+                            .foregroundStyle(Color.accentColor).symbolSize(12)
+                    }
+                    .chartYScale(domain:0...100)
+                    .chartYAxis {AxisMarks(values:[0,50,100]) { value in
+                        AxisGridLine();AxisValueLabel {if let v=value.as(Int.self) {Text("\(v)%")}}
+                    }}
+                    .chartXAxis {AxisMarks(values:.automatic(desiredCount:3))}
+                    .chartLegend(.hidden).frame(height:115)
+
     }
 }
