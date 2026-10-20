@@ -25,6 +25,9 @@ import TokenBarCore
     let agyQuota=NativeQuotaPresentation()
     let claudeQuota=NativeQuotaPresentation()
     func quotaState(_ provider:NativeQuotaProvider) -> NativeQuotaPresentation {provider == .codex ? codexQuota:provider == .agy ? agyQuota:claudeQuota}
+    var allClients:[String] {
+        Array(Set((fleet?.selected() ?? local?.rows ?? []).map(\.agent))).sorted()
+    }
     var noCurrentData:Bool {
         if let fleet {let host=UserDefaults.standard.string(forKey:"agentusage.selectedHost").flatMap{$0.isEmpty ? nil:$0};return !fleet.hasData(host:host)}
         return local==nil

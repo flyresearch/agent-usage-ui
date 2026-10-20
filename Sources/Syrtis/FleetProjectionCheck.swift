@@ -97,7 +97,7 @@ enum FleetProjectionCheck {
                 splitGraph.contributions[0].clients.first(where:{$0.client=="codex"})?.tokens.total==100 else {throw FleetSourceError.unavailable}
             try await FleetAnalysisCheck.run(oldHours:hours,newHours:codexHours,oldAgents:roles,newAgents:childRole)
             let quota=try await checkNativeQuota(source)
-            try await checkDesktop(graph:graph,quota:quota)
+            try await checkDesktop(graph:graph,quota:quota,fleet:fleet)
             print("{\"passed\":31,\"failed\":[]}");return 0
         } catch {print("{\"passed\":0,\"failed\":[\"fleet_projection\"]}");return 1}
     }
@@ -208,7 +208,9 @@ extension FleetProjectionCheck {
 
 
 extension FleetProjectionCheck {
-    @MainActor static func checkDesktop(graph:UsagePayload,quota:AgentUsagePayload) throws {
+    @MainActor static func checkDesktop(graph:UsagePayload,quota:AgentUsagePayload,fleet:FleetSnapshot) throws {
+        let state=FleetUIState();state.fleet=fleet
+        guard state.allClients==["codex","hermes"] else {throw FleetSourceError.unavailable}
         guard AutostartService.supports(bundleURL:URL(fileURLWithPath:"/synthetic/Agent Usage.app"),identifier:"org.example.fixture"),
               !AutostartService.supports(bundleURL:URL(fileURLWithPath:"/synthetic/cli"),identifier:"org.example.fixture"),
               !AutostartService.supports(bundleURL:URL(fileURLWithPath:"/synthetic/App.app"),identifier:nil) else {throw FleetSourceError.unavailable}

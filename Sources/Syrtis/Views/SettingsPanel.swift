@@ -79,6 +79,7 @@ struct SettingsPanel: View {
     @SyrtisState private var autostartEnabled = false
     @SyrtisState private var autostartNotice: String?
     @SyrtisState private var autostartPending = false
+    @SyrtisState private var autostartRevision = 0
     /// Set only after the service accepts a user mutation, so a slower initial
     /// read cannot overwrite committed state while a failed mutation still lets
     /// that authoritative read settle the switch.
@@ -242,6 +243,20 @@ struct SettingsPanel: View {
                 else if state == .unavailable {autostartNotice="系统当前无法确认登录启动状态，可尝试启用或在系统登录项中核对。"}
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for:NSApplication.didBecomeActiveNotification)) { _ in
+            guard FleetMode.enabled,!autostartPending,AutostartService.isAvailable else {return}
+            let revision=autostartRevision
+            Task { @MainActor in
+                let state=await AutostartService.readState()
+                guard !autostartPending,revision==autostartRevision else {return}
+                autostartEnabled=state == .enabled
+                switch state {
+                case .requiresApproval:autostartNotice="请在系统设置的登录项中允许 Agent Usage 启动。"
+                case .unavailable:autostartNotice="系统当前无法确认登录启动状态，可尝试启用或在系统登录项中核对。"
+                default:autostartNotice=nil
+                }
+            }
+        }
         .alert(FleetMode.enabled ? "Restart Agent Usage?".localized:"Restart Syrtis?".localized, isPresented: $showLanguageRestartPrompt) {
             Button("Later", role: .cancel) {}
             Button("Restart Now") { AppRelauncher.relaunch() }
@@ -347,7 +362,7 @@ struct SettingsPanel: View {
     @ViewBuilder
     private func individualItemsSection() -> some View {
         let rows = ClientTray.settingsRows(
-            presentClients: presentClients ?? [],
+            presentClients: FleetMode.enabled ? FleetUIState.shared.allClients : presentClients ?? [],
             payload: agentUsage,
             enabled: ClientTray.parseEnabledRaw(individualEnabledRaw),
             selections: ClientTray.parseSelectionsRaw(individualSelectionsRaw),
@@ -959,7 +974,7 @@ struct SettingsPanel: View {
                 if AutostartService.isAvailable {
                     toggleRow("Launch at login",isOn:Binding(get:{autostartEnabled},set:{next in
                         guard !autostartPending else {return}
-                        autostartMutationCommitted=true;autostartPending=true;autostartNotice=nil
+                        autostartMutationCommitted=true;autostartRevision += 1;autostartPending=true;autostartNotice=nil
                         let accepted=AutostartService.setEnabled(next)
                         Task { @MainActor in
                             let state=await AutostartService.readState()

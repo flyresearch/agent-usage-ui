@@ -622,7 +622,8 @@ Fleet General now includes login startup and language settings alongside the
 existing connection editor. Login startup availability is based on the current
 application bundle, independently of Sparkle/update eligibility. Only an explicit
 user toggle registers/unregisters the current app with SMAppService. State is
-read back after mutations; approval-required, unavailable and failed operations
+read back after mutations and when the app regains focus; revision fencing prevents
+a late read from overwriting a newer user toggle. Approval-required, unavailable and failed operations
 are visible rather than assumed successful. The system login-items settings can
 be opened from the page. This batch does not turn login startup on automatically.
 
