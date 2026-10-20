@@ -6,6 +6,12 @@ struct FleetHeaderKey: Equatable {
     let host:String
     let clients:[String]
     let year:String?
+    let configuration:String?
+    let available:Bool
+    func canRetain(_ previous:Self?) -> Bool {
+        guard let previous,available,configuration != nil else {return false}
+        return previous.available && configuration==previous.configuration && host==previous.host && clients==previous.clients && year==previous.year
+    }
 }
 struct FleetHeaderReport: Sendable, Equatable {
     let unallocated:UInt64

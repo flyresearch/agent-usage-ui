@@ -132,7 +132,9 @@ struct FleetStatusHeader:View {
     @SyrtisState private var reportKey:FleetHeaderKey?
     var body:some View {
         let state=FleetUIState.shared
-        let key=FleetHeaderKey(revision:state.revision,host:selectedHost,clients:clients.sorted(),year:year)
+        let configuration=state.fleet?.configuration_fingerprint ?? state.local.map{$0.host_id+"|"+$0.configuration_fingerprint}
+        let available=state.fleet?.hasData(host:selectedHost.isEmpty ? nil:selectedHost) ?? (state.local != nil)
+        let key=FleetHeaderKey(revision:state.revision,host:selectedHost,clients:clients.sorted(),year:year,configuration:configuration,available:available)
         VStack(alignment:.leading,spacing:6) {
             if let fleet=state.fleet {
                 Picker("机器",selection:$selectedHost) {
@@ -144,7 +146,7 @@ struct FleetStatusHeader:View {
             }
             if let error=state.error {Text(error).font(.caption).foregroundStyle(.orange)}
             let host=selectedHost.isEmpty ? nil:selectedHost
-            if reportKey==key,let report {
+            if (reportKey==key || key.canRetain(reportKey)),let report {
                 if report.unallocated>0 {Text("未分摊日期：\(report.unallocated.formatted()) Token").font(.caption).foregroundStyle(.secondary)}
                 Text(report.note).font(.caption2).foregroundStyle(.secondary)
             } else {Text("正在更新统计说明…").font(.caption2).foregroundStyle(.secondary)}

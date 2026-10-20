@@ -289,7 +289,7 @@ actor FleetUsageDataSource: UsageDataSource {
         await MainActor.run {
             let state=FleetUIState.shared.quotaState(provider)
             guard state.quotaGeneration==generation else {return}
-            state.quota=nil;state.quotaMessage=nil;state.quotaLoading=true
+            state.quotaMessage=nil;state.quotaLoading=true
         }
         guard generation==quotaGenerations[provider,default:0] else {return}
         let task=Task.detached {

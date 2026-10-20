@@ -79,8 +79,6 @@ struct FleetQuotaCard: View {
             VStack(alignment:.leading,spacing:10) {
                 if !state.quotaEnabled {
                     Text(provider == .claude ? "在设置中启用 Claude 会话额度，并配置状态栏桥接快照。":"在设置中启用在线额度，并选择已登录的 "+provider.title+" 程序。").font(.caption).foregroundStyle(.secondary)
-                } else if state.quotaLoading {
-                    ProgressView("正在查询额度…").controlSize(.small)
                 } else if let snapshot=state.quota,snapshot.fresh(at:now) {
                     Text(provider == .claude ? "本机最近观测到的 Claude Code 会话额度；不代表独立实时查询，不跨会话或机器相加。":"本机原生 CLI 当前登录账号；不随机器筛选变化，不跨机器相加。菜单栏额度跟随设置中选择的窗口；自动模式选择剩余比例最少的窗口。")
                         .font(.caption2).foregroundStyle(.secondary)
@@ -102,6 +100,8 @@ struct FleetQuotaCard: View {
                         }
                     }
                     Text((provider == .claude ? "观测时间：":"查询时间：")+snapshot.capturedAt.formatted(date:.omitted,time:.standard)).font(.caption2).foregroundStyle(.secondary)
+                } else if state.quotaLoading {
+                    ProgressView("正在查询额度…").controlSize(.small)
                 } else {
                     Text(state.quotaMessage ?? "额度数据已过期或尚未获取，请刷新。")
                         .font(.caption).foregroundStyle(.orange)

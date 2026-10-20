@@ -4,6 +4,14 @@ import TokenBarCore
 
 enum FleetPresentationCheck {
     static func run(snapshot:UsageSnapshot,priced:UsageSnapshot,fleet:FleetSnapshot) async throws {
+        func key(host:String="",year:String?=nil,configuration:String?="fixture",available:Bool=true) -> FleetHeaderKey {
+            FleetHeaderKey(revision:UUID(),host:host,clients:["codex"],year:year,configuration:configuration,available:available)
+        }
+        let previous=key()
+        guard key().canRetain(previous),!key(host:"other").canRetain(previous),
+              !key(year:"2025").canRetain(previous),!key(configuration:"changed").canRetain(previous),
+              !key(configuration:nil,available:false).canRetain(previous),!key(available:false).canRetain(previous)
+        else {throw FleetSourceError.unavailable}
         let worker=FleetPresentation()
         let now=Date(timeIntervalSince1970:1767225600)
         let today=try await worker.menu(.local(snapshot),mode:.todayTokens,now:now)

@@ -106,7 +106,7 @@ enum FleetProjectionCheck {
             let quota=try await checkNativeQuota(source)
             try await checkDesktop(graph:graph,quota:quota,fleet:fleet)
             try await FleetPresentationCheck.run(snapshot:snapshot,priced:priced,fleet:fleet)
-            print("{\"passed\":44,\"failed\":[]}");return 0
+            print("{\"passed\":45,\"failed\":[]}");return 0
         } catch {print("{\"passed\":0,\"failed\":[\"fleet_projection\"]}");return 1}
     }
 }

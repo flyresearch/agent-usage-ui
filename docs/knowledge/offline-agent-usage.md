@@ -802,3 +802,21 @@ menu pricing 70.164 ms, warm header lookup 1.749 ms, client-ID extraction 2.384 
 The header benchmark re-decodes equivalent snapshots outside each timed section,
 so it cannot win solely through Array storage identity. All three measured paths
 execute on the presentation actor; these are not main-thread or click timings.
+
+## Stable layout during background refresh
+
+The asynchronous header now retains its prepared multi-line report during a
+same-configuration, same-host/client/year refresh. Previously every publication
+revision replaced it with a one-line loading message before restoring the report,
+which repeatedly changed content height. The revision still fences late task
+results; a separate scope/configuration/availability comparison determines whether
+old content can remain visible while computation runs. Filter or configuration
+changes and unavailable data do not reuse the previous scope's report.
+
+Native quota refresh similarly retains a still-fresh snapshot while the request
+runs. Its existing freshness/reset checks continue to hide expired data, and
+configuration changes or request failures still clear the snapshot. Initial loads
+without a usable snapshot show progress as before. These changes avoid routine
+refresh-induced collapse without fixing a misleading minimum height or disabling
+polling. Production-policy checks cover retention and invalidation boundaries;
+full mouse-interaction acceptance remains separate.
