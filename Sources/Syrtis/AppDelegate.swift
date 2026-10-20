@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        if AgentUsageProduct.enabled && UpdaterService.isAvailable {_ = UpdaterService.shared}
         if FleetMode.enabled {FleetRuntime.shared.start();return}
 #if DEBUG
         if TrayAnimationCPUTestConfiguration.current != nil {
@@ -67,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 #endif
-        BetaMigration.runIfNeeded() // before anything reads defaults
+        if !AgentUsageProduct.enabled {BetaMigration.runIfNeeded()} // before anything reads defaults
         ClientRegistry.migrateLegacyOrderKey() // fold the old limits order into the shared tab order, likewise before reads
         // refreshIntervalMin's initializer ran at AppDelegate construction in
         // main.swift, BEFORE the migration above — re-read it now so a migrated
@@ -110,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // After the Syrtis rename, repoint a Dock tile still pinned to the
         // old bundle file name. Background queue; a no-op unless it matches.
-        DockPinRepair.runIfNeeded()
+        if !AgentUsageProduct.enabled {DockPinRepair.runIfNeeded()}
 
         let controller = StatusItemController()
         statusController = controller

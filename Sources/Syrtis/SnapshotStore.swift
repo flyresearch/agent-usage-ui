@@ -344,7 +344,7 @@ struct BuildIdentity: Equatable, Sendable {
     /// session. Split out so it is directly assertable — the identifier half
     /// cannot be exercised under `swift run`, which has no bundle at all.
     static func isNonUserRuntime(_ arguments: [String]) -> Bool {
-        arguments.contains { nonUserRuntimeFlags.contains($0) }
+        arguments.contains { nonUserRuntimeFlags.contains($0) || ["--agent-usage-runtime-check","--fleet-projection-check","--fleet-report-check","--fleet-desktop-check","--fleet-login-roundtrip","--fleet-quota-history-preview","--fleet-source-preview"].contains($0) }
     }
 
     /// Every input is injectable, and deliberately so. Under `swift run` there
@@ -357,11 +357,13 @@ struct BuildIdentity: Equatable, Sendable {
         shortVersion: String? = Bundle.main
             .object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
         buildNumber: String? = Bundle.main
-            .object(forInfoDictionaryKey: "CFBundleVersion") as? String
+            .object(forInfoDictionaryKey: "CFBundleVersion") as? String,
+        fleetMode: Bool = FleetMode.enabled
     ) -> BuildIdentity? {
         guard !isNonUserRuntime(arguments) else { return nil }
+        guard bundleIdentifier != AgentUsageProduct.identifier || !fleetMode else {return nil}
         guard let bundle = bundleIdentifier,
-              bundle == "com.nyanako.tokenbar",
+              ["com.nyanako.tokenbar",AgentUsageProduct.identifier].contains(bundle),
               let short = shortVersion,
               let build = buildNumber
         else { return nil }

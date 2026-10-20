@@ -22,10 +22,11 @@ final class SettingsWindowController {
         case discord
         case usageAttribution
         case dashboard
+        case dataScope
 
         var page: SettingsPanel.Page {
             switch self {
-            case .discord: return .general
+            case .discord, .dataScope: return .general
             case .usageAttribution: return .usageAttribution
             case .dashboard: return .dashboard
             }
@@ -38,7 +39,7 @@ final class SettingsWindowController {
         var anchor: String? {
             switch self {
             case .discord: return Self.discordAnchor
-            case .usageAttribution, .dashboard: return nil
+            case .usageAttribution, .dashboard, .dataScope: return nil
             }
         }
 
@@ -126,7 +127,7 @@ final class SettingsWindowController {
         // 1x0 at show time, which broke the centering math) — force the
         // SwiftUI fitting size up front.
         window.setContentSize(host.view.fittingSize)
-        window.title = FleetMode.enabled ? "Agent Usage 设置" : "Syrtis Settings".localized
+        window.title = AgentUsageProduct.enabled ? "Agent Usage Settings".localized : "Syrtis Settings".localized
         window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
         // The glass backdrop runs under the title bar (the popover look);
         // scroll views inset their content via the safe area.

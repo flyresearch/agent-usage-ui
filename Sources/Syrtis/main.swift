@@ -1,9 +1,25 @@
 import AppKit
+import TokenBarCore
 
 // Entry point. `--smoke` keeps the Phase 1 CLI bridge check available for CI,
 // `--selftest` runs the TokenBarCore logic checks; anything else boots the
 // menu-bar app (no storyboard, no .app bundle yet).
 
+if CommandLine.arguments.contains("--agent-usage-runtime-check") {
+    Task { @MainActor in
+        do {
+            let value:[String:Any] = ["independent_product":AgentUsageProduct.enabled,
+                "scope":FleetMode.enabled ? "fleet":"native",
+                "native_source_selected":UsageDataSources.current is LiveUsageDataSource,
+                "engine_source_count":try TBCore.engineClientIds().count,
+                "quota_provider_count":try TBCore.quotaProviderIds().count,
+                "independent_update_enabled":UpdaterService.isAvailable]
+            let data=try JSONSerialization.data(withJSONObject:value,options:.sortedKeys)
+            print(String(decoding:data,as:UTF8.self));exit(0)
+        } catch {print("{\"error\":\"runtime_check_failed\"}");exit(1)}
+    }
+    dispatchMain()
+}
 if CommandLine.arguments.contains("--fleet-login-roundtrip") {
     Task { @MainActor in
         _ = NSApplication.shared
@@ -74,8 +90,11 @@ if DemoData.ignoresLocalVisibility {
 // First launch after the Syrtis rename: move TokenBar.app to Syrtis.app and
 // relaunch from there (exits on success). Before NSApplication, so nothing has
 // loaded a resource through the old path yet.
-if !FleetMode.enabled {BundleRename.runIfNeeded()}
+if !AgentUsageProduct.enabled {BundleRename.runIfNeeded()}
+do {try AgentUsageProduct.prepareNativeStorage()}
+catch {FileHandle.standardError.write(Data("native_storage_unavailable\n".utf8));exit(1)}
 
+Format.usesEstimatePrefix=FleetMode.enabled
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

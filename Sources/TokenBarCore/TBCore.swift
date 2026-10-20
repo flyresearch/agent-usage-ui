@@ -437,6 +437,14 @@ public enum TBCore {
 
     /// The quota provider ids, in card order, from the engine's single
     /// registration table. Offline and cheap.
+    public struct NativeHistoryImport: Decodable, Sendable {
+        public let seriesCount:Int
+        public let imported:Bool
+    }
+    public static func nativeHistoryImport(commit:Bool) throws -> NativeHistoryImport {
+        try unwrap(tb_native_history_import(commit ? 1:0))
+    }
+
     public static func quotaProviderIds() throws -> [String] {
         let payload: QuotaProviderIds = try unwrap(tb_quota_provider_ids())
         return payload.ids

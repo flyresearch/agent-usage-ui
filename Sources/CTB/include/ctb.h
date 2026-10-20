@@ -88,6 +88,8 @@ char *tb_tokens_per_min(void);
 // The quota provider ids in card order: {"ids": ["codex", ...]}. Offline, reads
 // no user data; the single registration point is agent_usage::QUOTA_PROVIDERS.
 char *tb_quota_provider_ids(void);
+// Explicit local history preview/import; returns only counts and fixed error codes.
+char *tb_native_history_import(int32_t commit);
 
 // Every local client id the engine attributes usage to: {"ids": ["claude", ...]},
 // from ClientId::ALL. Offline, reads no user data.

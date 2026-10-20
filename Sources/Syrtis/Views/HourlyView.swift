@@ -157,7 +157,7 @@ struct HourlyView: View {
         -> String
     {
         guard hasData else { return "—" }
-        if FleetMode.enabled {return "\(timeline.count) 个小时 · " + (report?.costEstimate.map { "≈"+Format.usd($0) } ?? "金额 —")}
+        if FleetMode.enabled {return "\(timeline.count) 个小时 · " + (report?.costEstimate.map { Format.usd($0) } ?? "金额 —")}
         switch mode {
         case .profile:
             let peak = buckets.max { $0.tokens < $1.tokens } ?? buckets[0]
@@ -216,7 +216,7 @@ struct HourlyView: View {
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 44, alignment: .trailing)
-            Text(FleetMode.enabled ? (estimate.map { "≈"+Format.usd($0) } ?? "—") : (cost > 0 ? Format.usd(cost) : ""))
+            Text(FleetMode.enabled ? (estimate.map { Format.usd($0) } ?? "—") : (cost > 0 ? Format.usd(cost) : ""))
                 .font(.caption2.monospacedDigit())
                 .frame(width: 52, alignment: .trailing)
         }

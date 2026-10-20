@@ -60,7 +60,7 @@ struct StatsView: View {
     }
 
     private func summaryCard(_ report:FleetHeaderReport?) -> some View {
-        let offlineCost=report?.cost.map { "≈" + Format.usd($0) + (report?.costComplete == true ? "":"（部分已定价）") } ?? "—"
+        let offlineCost=report?.cost.map { Format.usd($0) + (report?.costComplete == true ? "":"（部分已定价）") } ?? "—"
         let offlineTotal=report?.total.map { $0.formatted(.number.notation(.compactName)) } ?? "—"
         return VStack(alignment: .leading, spacing: 12) {
             if FleetMode.enabled {

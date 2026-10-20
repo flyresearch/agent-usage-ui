@@ -3,6 +3,8 @@ import TokenBarCore
 
 /// Small display formatters shared by the tray title and the popover.
 enum Format {
+    // Assigned once before the app starts; the cross-check target stays neutral.
+    nonisolated(unsafe) static var usesEstimatePrefix=false
     /// Compact token count: 999 → "999", 12_345 → "12.3K", 1_234_567 → "1.2M".
     static func compactTokens(_ count: Int64) -> String {
         let value = Double(count)
@@ -31,7 +33,7 @@ enum Format {
     }
 
     static func usd(_ amount: Double) -> String {
-        (FleetMode.enabled ? "≈" : "") + String(format: "$%.2f", amount)
+        (usesEstimatePrefix ? "≈" : "") + String(format: "$%.2f", amount)
     }
 
     /// A "this many times over" multiple, for the implausible-cost warning.

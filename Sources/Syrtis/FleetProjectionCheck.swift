@@ -8,6 +8,39 @@ import TokenBarCore
 enum FleetProjectionCheck {
     static func run() async -> Int32 {
         do {
+            guard AgentUsageMode.resolve(arguments:[],stored:nil,hasFleetConfiguration:false) == .native,
+                  AgentUsageMode.resolve(arguments:[],stored:nil,hasFleetConfiguration:true) == .fleet,
+                  AgentUsageMode.resolve(arguments:[],stored:"native",hasFleetConfiguration:true) == .native,
+                  AgentUsageMode.resolve(arguments:["--fleet-offline"],stored:"native",hasFleetConfiguration:false) == .fleet,
+                  AgentUsageMode.resolve(arguments:["--agent-usage-native"],stored:"fleet",hasFleetConfiguration:true) == .native,
+                  BuildIdentity.shipping(arguments:[],bundleIdentifier:AgentUsageProduct.identifier,shortVersion:"1",buildNumber:"1",fleetMode:false) != nil,
+                  BuildIdentity.shipping(arguments:["--fleet-projection-check"],bundleIdentifier:AgentUsageProduct.identifier,shortVersion:"1",buildNumber:"1",fleetMode:false) == nil,
+                  BuildIdentity.shipping(arguments:[],bundleIdentifier:AgentUsageProduct.identifier,shortVersion:"1",buildNumber:"1",fleetMode:true) == nil,
+                  UsageDataSources.make(arguments:["--demo"]) is DemoUsageDataSource
+            else {throw FleetSourceError.unavailable}
+            let updateKey=Data(repeating:1,count:32).base64EncodedString()
+            guard UpdaterService.independentFeedAllowed(identifier:AgentUsageProduct.identifier,feed:"https://github.com/flyresearch/agent-usage-ui/releases/latest/download/appcast.xml",publicKey:updateKey),
+                  !UpdaterService.independentFeedAllowed(identifier:AgentUsageProduct.identifier,feed:"https://github.com/Nanako0129/syrtis/raw/main/appcast.xml",publicKey:updateKey),
+                  !UpdaterService.independentFeedAllowed(identifier:AgentUsageProduct.identifier,feed:"https://github.com/flyresearch/agent-usage-ui/releases/latest/download/appcast.xml",publicKey:nil)
+            else {throw FleetSourceError.unavailable}
+            try await MainActor.run {
+            let migrationSuite="agent-usage-migration-check-"+UUID().uuidString
+            let migrationDefaults=UserDefaults(suiteName:migrationSuite)!
+            defer {migrationDefaults.removePersistentDomain(forName:migrationSuite)}
+            migrationDefaults.set("hidden",forKey:TrayMode.storageKey)
+            let migration=AgentUsagePreferencesMigration.plan(source:[TrayMode.storageKey:"today_tokens",PopoverChrome.heightKey:640,"credential":"synthetic-excluded"],existing:migrationDefaults.persistentDomain(forName:migrationSuite) ?? [:])
+            guard migration.count==1,AgentUsagePreferencesMigration.apply(migration,defaults:migrationDefaults,domain:migrationSuite)==1,
+                  migrationDefaults.string(forKey:TrayMode.storageKey)=="hidden",migrationDefaults.double(forKey:PopoverChrome.heightKey)==640 else {throw FleetSourceError.unavailable}
+            migrationDefaults.set(700,forKey:PopoverChrome.heightKey)
+            guard AgentUsagePreferencesMigration.undo(defaults:migrationDefaults,domain:migrationSuite)==0,migrationDefaults.double(forKey:PopoverChrome.heightKey)==700 else {throw FleetSourceError.unavailable}
+            migrationDefaults.removeObject(forKey:PopoverChrome.heightKey)
+            _=AgentUsagePreferencesMigration.apply(migration,defaults:migrationDefaults,domain:migrationSuite)
+            guard AgentUsagePreferencesMigration.undo(defaults:migrationDefaults,domain:migrationSuite)==1,migrationDefaults.object(forKey:PopoverChrome.heightKey)==nil else {throw FleetSourceError.unavailable}
+            }
+            for locale in ["en","zh-Hans","zh-Hant"] {
+                guard AppLanguage.localizedString("本机 · Syrtis 完整功能",locale:locale) != nil,
+                      AppLanguage.localizedString("迁移旧额度历史",locale:locale) != nil else {throw FleetSourceError.unavailable}
+            }
             let zero:[String:Any]=["input":0,"cache_read":0,"cache_write":0,"output":0,"reasoning":0]
             var first=zero;first["input"]=10;first["cache_read"]=90
             var second=zero;second["output"]=7
@@ -106,7 +139,7 @@ enum FleetProjectionCheck {
             let quota=try await checkNativeQuota(source)
             try await checkDesktop(graph:graph,quota:quota,fleet:fleet)
             try await FleetPresentationCheck.run(snapshot:snapshot,priced:priced,fleet:fleet)
-            print("{\"passed\":45,\"failed\":[]}");return 0
+            print("{\"passed\":60,\"failed\":[]}");return 0
         } catch {print("{\"passed\":0,\"failed\":[\"fleet_projection\"]}");return 1}
     }
 }

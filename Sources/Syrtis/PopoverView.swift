@@ -216,6 +216,7 @@ struct PopoverView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if AgentUsageProduct.enabled {AgentUsageScopeHeader()}
             if FleetMode.enabled {FleetStatusHeader(clients:lensClientIds,year:model.year) {Task {await model.reloadFleetScope()}}}
             if showQuickSettings {
                 QuickSettingsCard()
@@ -498,9 +499,9 @@ struct PopoverView: View {
         HStack {
             BrandMark()
                 .frame(width: 17, height: 17)
-            Text(FleetMode.enabled ? "Agent Usage" : "Σύρτις")
-                .font(FleetMode.enabled ? .system(size:15,weight:.semibold) : .syrtisWordmark(size: 15))
-                .foregroundStyle(FleetMode.enabled ? Color.indigo : Color.syrtisAccent)
+            Text(AgentUsageProduct.enabled ? "Agent Usage" : "Σύρτις")
+                .font(AgentUsageProduct.enabled ? .system(size:15,weight:.semibold) : .syrtisWordmark(size: 15))
+                .foregroundStyle(AgentUsageProduct.enabled ? Color.indigo : Color.syrtisAccent)
             Spacer()
             liveRateBadge
             yearMenu
@@ -907,7 +908,7 @@ struct PopoverView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Spacer()
-            if !FleetMode.enabled, let version = UpdaterService.shared.availableVersion {
+            if UpdaterService.isAvailable, let version = UpdaterService.shared.availableVersion {
                 Button {
                     UpdaterService.shared.checkForUpdates()
                 } label: {

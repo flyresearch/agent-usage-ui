@@ -481,7 +481,7 @@ private struct MenuBarMock: View {
 
     @ViewBuilder
     private func icon(remaining: Double?) -> some View {
-        if FleetMode.enabled && animationStyle=="agent-usage" {BrandMark().frame(width:18,height:18)} else {
+        if AgentUsageProduct.enabled && animationStyle=="agent-usage" {BrandMark().frame(width:18,height:18)} else {
         if let gauge = QuotaIconStyle(rawValue: animationStyle) {
             let coloring = IconColoring(rawValue: iconColoringRaw) ?? .warningOnly
             // Same stale rule as the menu bar (#8), evaluated at render time.

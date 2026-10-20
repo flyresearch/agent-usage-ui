@@ -83,7 +83,7 @@ struct AgentsView: View {
                     .help(sources)
                 Spacer()
                 Text(FleetMode.enabled
-                     ? "已计量 \(entry.messages.formatted())\(entry.messageCountComplete == true ? "" : "（部分）") · \(Format.compactTokens(entry.total)) Token · " + (entry.costEstimate.map { "≈"+Format.usd($0) } ?? "金额 —")
+                     ? "已计量 \(entry.messages.formatted())\(entry.messageCountComplete == true ? "" : "（部分）") · \(Format.compactTokens(entry.total)) Token · " + (entry.costEstimate.map { Format.usd($0) } ?? "金额 —")
                      : "%@ msgs".localized(entry.messages.formatted()) + " · \(Format.compactTokens(entry.total)) · \(Format.money(tokens:entry.total,cost:entry.cost))")
                     .foregroundStyle(.secondary)
                     .layoutPriority(1)

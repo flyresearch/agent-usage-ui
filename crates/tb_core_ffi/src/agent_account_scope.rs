@@ -202,7 +202,7 @@ impl Backend for SystemBackend {
 
     fn storage_dir(&self) -> Result<PathBuf, AccountScopeError> {
         dirs::data_dir()
-            .map(|path| path.join("com.nyanako.tokenbar"))
+            .map(|path| path.join(crate::runtime_identity::directory()))
             .ok_or(AccountScopeError::StorageUnavailable)
     }
 
@@ -654,6 +654,19 @@ fn load_metadata<B: Backend>(
             Err(AccountScopeError::MetadataCorrupt)
         }
     }
+}
+
+pub(crate) fn validate_history_import_metadata(key: &[u8], bytes: &[u8]) -> bool {
+    let Ok(key): Result<&[u8; INSTALLATION_KEY_BYTES], _> = key.try_into() else { return false; };
+    decode_metadata(key, bytes).is_ok()
+}
+
+#[cfg(test)]
+pub(crate) fn history_import_fixture_metadata(key: &[u8; INSTALLATION_KEY_BYTES]) -> Vec<u8> {
+    let payload = serde_json::to_vec(&MetadataPayload::default()).unwrap();
+    let metadata_key = metadata_mac_key(key).unwrap();
+    let mac = hmac_digest(&metadata_key, &[&payload]).unwrap();
+    serde_json::to_vec(&MetadataEnvelope {schema_version:1,payload_bytes_base64:STANDARD.encode(payload),payload_mac:encode_digest(&mac)}).unwrap()
 }
 
 fn decode_metadata(

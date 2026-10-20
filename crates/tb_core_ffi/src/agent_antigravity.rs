@@ -2584,6 +2584,7 @@ fn gemini_home_from(
 //   `error_description`.
 
 /// Keychain service of the items Syrtis writes for captured accounts.
+#[cfg(test)]
 const CAPTURED_SERVICE: &str = "com.nyanako.tokenbar.antigravity-account";
 const SECURITY_TOOL: &str = "/usr/bin/security";
 /// Domain separator for `captured_key`, so the key cannot collide with a
@@ -2728,13 +2729,31 @@ fn write_item_call(key: &str, value: &str) -> Option<SecurityCall> {
     if !valid_captured_key(key) || !valid_keychain_value(value) {
         return None;
     }
+    let service = crate::runtime_identity::captured_service();
     Some(SecurityCall {
         argv: security_argv(&["-i"]),
         stdin: Some(
-            format!("add-generic-password -U -s {CAPTURED_SERVICE} -a {key} -w {value}\n")
+            format!("add-generic-password -U -s {service} -a {key} -w {value}\n")
                 .into_bytes(),
         ),
     })
+}
+
+#[cfg(test)]
+#[test]
+fn process_namespace_reaches_captured_account_commands() {
+    let key = "a".repeat(64);
+    let expected = if crate::runtime_identity::independent() {
+        "org.flyresearch.agentusage.antigravity-account"
+    } else {
+        "com.nyanako.tokenbar.antigravity-account"
+    };
+    let read = read_item_call(&key).unwrap();
+    let delete = delete_item_call(&key).unwrap();
+    let write = write_item_call(&key, "Zml4dHVyZQ==").unwrap();
+    assert_eq!(read.argv[2], expected);
+    assert_eq!(delete.argv[2], expected);
+    assert!(String::from_utf8(write.stdin.unwrap()).unwrap().contains(expected));
 }
 
 fn read_item_call(key: &str) -> Option<SecurityCall> {
@@ -2742,7 +2761,7 @@ fn read_item_call(key: &str) -> Option<SecurityCall> {
         argv: security_argv(&[
             "find-generic-password",
             "-s",
-            CAPTURED_SERVICE,
+            crate::runtime_identity::captured_service(),
             "-a",
             key,
             "-w",
@@ -2753,7 +2772,7 @@ fn read_item_call(key: &str) -> Option<SecurityCall> {
 
 fn delete_item_call(key: &str) -> Option<SecurityCall> {
     valid_captured_key(key).then(|| SecurityCall {
-        argv: security_argv(&["delete-generic-password", "-s", CAPTURED_SERVICE, "-a", key]),
+        argv: security_argv(&["delete-generic-password", "-s", crate::runtime_identity::captured_service(), "-a", key]),
         stdin: None,
     })
 }

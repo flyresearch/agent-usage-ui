@@ -4,7 +4,7 @@ import UsageCore
 
 /// Explicit offline build/runtime lane. The original Syrtis UI remains the consumer.
 enum FleetMode {
-    static let enabled = Bundle.main.object(forInfoDictionaryKey:"AgentUsageOffline") as? Bool == true || CommandLine.arguments.contains("--fleet-offline")
+    static let enabled = AgentUsageProduct.enabled && !CommandLine.arguments.contains(where:{["--demo","--selftest","--icon-gallery","--smoke"].contains($0)}) && AgentUsageMode.current == .fleet
 }
 
 enum FleetSourceError: Error {case unavailable, unsupported, outOfRange}

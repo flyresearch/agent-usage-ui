@@ -14,6 +14,8 @@
 //! names (TokenBar-tokcat/src-tauri/src/*.rs) with the Tauri command plumbing
 //! stripped; keep them diffable against the originals.
 
+mod runtime_identity;
+mod native_history_import;
 mod agent_account_scope;
 mod agent_antigravity;
 mod agent_copilot;
@@ -1076,6 +1078,11 @@ pub extern "C" fn tb_tokens_per_min() -> *mut c_char {
 /// must know the provider set from here rather than keeping its own list (#324).
 /// Offline and reads no user data; like every `tb_*` entry it goes through
 /// `guarded`, which initializes the rayon pool on first use.
+#[no_mangle]
+pub extern "C" fn tb_native_history_import(commit: i32) -> *mut c_char {
+    guarded("tb_native_history_import", || envelope(native_history_import::run(commit != 0)))
+}
+
 #[no_mangle]
 pub extern "C" fn tb_quota_provider_ids() -> *mut c_char {
     guarded("tb_quota_provider_ids", || {

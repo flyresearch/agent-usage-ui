@@ -486,7 +486,7 @@ pub(crate) fn record_observation_and_evaluate(
 }
 
 pub(crate) fn production_history_path() -> Option<PathBuf> {
-    let preferred = dirs::data_dir()?.join("com.nyanako.tokenbar");
+    let preferred = dirs::data_dir()?.join(crate::runtime_identity::directory());
     let directory = preferred;
     Some(directory.join(HISTORY_FILE_NAME))
 }
@@ -546,7 +546,7 @@ pub(crate) fn migrate_codex_v2(
     history_scope: &HistoryScope,
     now: i64,
 ) -> Result<MigrationOutcome, HistoryError> {
-    let Some(preferred) = dirs::data_dir().map(|directory| directory.join("com.nyanako.tokenbar"))
+    let Some(preferred) = dirs::data_dir().map(|directory| directory.join(crate::runtime_identity::directory()))
     else {
         return Err(HistoryError::StorageUnavailable);
     };
@@ -1888,6 +1888,12 @@ fn validate_series(series: &SeriesState) -> bool {
                 }
             });
     key.is_valid() && rollover_valid && samples_valid && activity_valid
+}
+
+pub(crate) fn validate_history_import(bytes: &[u8]) -> Option<usize> {
+    let store: Store = serde_json::from_slice(bytes).ok()?;
+    let store = migrate_store_to_current(store);
+    validate_store(&store).then_some(store.series.len())
 }
 
 fn validate_store(store: &Store) -> bool {

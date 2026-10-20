@@ -5,10 +5,19 @@ kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
 last_verified: 2026-10-20
-sources: ["offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "Sources/Syrtis/FleetPresentation.swift", "Sources/Syrtis/FleetPresentationCheck.swift", "Sources/Syrtis/Views/StatsView.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
+sources: ["Sources/Syrtis/AgentUsageMode.swift", "Sources/Syrtis/AgentUsagePreferencesMigration.swift", "crates/tb_core_ffi/src/runtime_identity.rs", "crates/tb_core_ffi/src/native_history_import.rs", "offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "Sources/Syrtis/FleetPresentation.swift", "Sources/Syrtis/FleetPresentationCheck.swift", "Sources/Syrtis/Views/StatsView.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
 ---
 
-# Offline agent-usage consumer
+# Agent Usage: Syrtis with fleet scope
+
+**Current architecture (2026-10-20):** the user authorized preserving Syrtis's
+original account/quota mechanisms, enabled through user configuration. Agent
+Usage now retains the full native Syrtis runtime and adds a separately selected
+fleet scope. Earlier offline-only statements below describe the fleet lane;
+they no longer prohibit the explicitly selected native lane. The independent
+collector itself remains credential-free and provider-network-free. The native
+and fleet scopes are never added together.
+
 
 This local fork adds a separate native app target under offline-ui. The reviewed
 base is upstream Syrtis v2.7.0, commit 15a8fe46e65816ce1eaac0c6e25dbcf9c0d4e040.
@@ -525,7 +534,7 @@ No row is waived merely because this installation has not used it yet.
 
 | ID | Capability to retain | Present state / gap | Acceptance evidence |
 |---|---|---|---|
-| R01 | All upstream supported usage sources | Partial: six source families in the independent collector; DSH and remaining adapters pending | One row per upstream source with format/revision, actual adapter tests and qualification status; icon/registry presence is not parser support |
+| R01 | All upstream supported usage sources | Native: original 42-client engine registry at 2d64ec4 restored, including DSH; fleet: six independent collector families. Live qualification is source-specific | One row per upstream source with format/revision, actual adapter tests and qualification status; icon/registry presence is not parser support |
 | R02 | Source discovery, additional roots, import/sync workflows | Partial: explicit local/SSH configuration works; upstream discovery and import paths need classification | Bounded discovery, preview/selection, overlap rejection, errors and source-specific import checks |
 | R03 | Tokens, metered calls, models, costs and date attribution | Partial: known totals and estimates implemented; original counts/attribution may differ | Reconciliation fixtures and real-source comparisons; distinguish estimates, billed spend, unknown counts and missing dates |
 | R04 | Overview, models, daily/monthly/hourly, Stats and Agents lenses | Partial: all tabs exist; some data dimensions are narrower | Every metric/filter/drilldown mapped to a real data path; no placeholder values presented as measured values |
@@ -534,17 +543,17 @@ No row is waived merely because this installation has not used it yet.
 | R07 | All menu-bar title modes, icons, animation, color, window letters | Implemented/reused; final interaction and resource checks pending | All modes, stale transitions, source selection consistency, idle/active CPU checks |
 | R08 | Independent per-client menu-bar items | Runtime and settings connected; current-build interaction acceptance pending | Add/remove/select windows, persistence, missing/expired sources, no duplicate polling |
 | R09 | Native quota cards and provider-specific balances | Partial: Codex, Claude and Antigravity bridges | Per-provider availability matrix, allowed native/API/export mechanism, refresh/reset/error behavior and optional setup |
-| R10 | Multi-account management and explicit account selection | Pending beyond native current-account/session observations | Add/select/remove without mixing histories; native login handoff; account change during refresh and restart tests |
-| R11 | Quota history, cycles, consumption pace and forecasts | Partial: bounded seven-day observations; verified in-process Codex trends | Account/window binding, continuity across restart when trustworthy, cycle history, uncertainty and reset/backfill boundaries |
-| R12 | Subscription attribution and quota-window local usage | Pending | Explicit confirmed mapping, unassigned bucket, reversible reassignment, concurrent mapping changes and no double counting |
+| R10 | Multi-account management and explicit account selection | Original native multi-account UI/runtime restored with independent captured-account storage; fleet bridges remain current-account observations | Add/select/remove without mixing histories; native login handoff; account change during refresh and restart tests |
+| R11 | Quota history, cycles, consumption pace and forecasts | Original native cycle/history/pace implementations restored in independent storage; fleet retains bounded seven-day observations | Account/window binding, continuity across restart when trustworthy, cycle history, uncertainty and reset/backfill boundaries |
+| R12 | Subscription attribution and quota-window local usage | Original native attribution/window runtime restored; fleet has no invented account mapping | Explicit confirmed mapping, unassigned bucket, reversible reassignment, concurrent mapping changes and no double counting |
 | R13 | Limits/card/window visibility, ordering and source filters | Partial: source/lens and native quota visibility controls connected; upstream layout/pace variants remain pending | Every retained control affects the corresponding producer/view and persists correctly |
 | R14 | Login startup and application lifecycle | Entry restored and updater gate separated; actual login-cycle acceptance pending | Actual login registration, launch, quit/restart, duplicate-instance behavior and permission failure paths |
 | R15 | Refresh settings and background collection | Configurable normal cadence and live override implemented; wake/long-run checks pending | User-facing interval controls, manual refresh, sleep/wake, failure cooldown and quota/history status consistency |
 | R16 | Language, appearance, popover size and accessibility | Language selector restored; full fleet-specific translations and interaction checks remain | Language selection/restart, full copy coverage, contrast, focus order, VoiceOver, shortcuts and small displays |
-| R17 | Optional Discord presence | Not started/exposed in fleet mode | Preserve as an explicit opt-in feature with preview, scope/privacy controls and working disable; do not enable or publish merely for testing |
+| R17 | Optional Discord presence | Original native opt-in integration restored; not enabled or published for verification | Preserve as an explicit opt-in feature with preview, scope/privacy controls and working disable; do not enable or publish merely for testing |
 | R18 | About, version, licenses, diagnostics and help | Partial | Correct product identity/build/version, retained MIT attribution, sanitized actionable diagnostics and working help links |
-| R19 | Installation, own update channel, signing and rollback | Local ad-hoc deployment only | Independent signed/notarized release path and update feed; upgrade/rollback preserves data and never installs upstream Syrtis over this app |
-| R20 | Preference/history migration and uninstall | Partial private backups; no complete migration flow | Previewed reversible migration, separate identities/stores, stable installed path, cleanup choices and original app retained until cutover |
+| R19 | Installation, own update channel, signing and rollback | Independent feed/signing-key admission implemented; local ad-hoc build only, signed release/channel remains unconfigured | Independent signed/notarized release path and update feed; upgrade/rollback preserves data and never installs upstream Syrtis over this app |
+| R20 | Preference/history migration and uninstall | Reversible display-preference import implemented; private rollback retained; empty-target quota-history migration implemented; captured-account reconfiguration and full uninstall flow remain explicit | Previewed reversible migration, separate identities/stores, stable installed path, cleanup choices and original app retained until cutover |
 | R21 | Fleet aggregation, coverage diagnostics and graphical config | Added capability, must not regress | Four-host fresh/stale/offline recovery, WAL visibility, config fencing, correct totals and private rollback |
 | R22 | Reliable daily operation and complete interaction acceptance | Partial; Computer Use capture currently blocked | Current-build manual or automated evidence for each critical flow, multi-day operation and recovery, not just process/build success |
 
@@ -838,3 +847,158 @@ late tasks cannot publish under the new key. The original non-fleet Stats data
 path is unchanged. Production checks now verify numeric totals, priced versus
 unpriced scopes, and zero versus unavailable values in addition to the existing
 cache and refresh-retention checks. Native interaction acceptance remains open.
+
+
+## Native-first fork integration
+
+Baseline: Syrtis v2.9.0 (`ed3fae7`), shared engine `2d64ec4`. The retained upstream
+ports include DSH registration/parser integration (`3524321`) and unread window
+tail/loading behavior (`6420419`). Previously ported window-letter selection and
+rendering match this baseline. MIT notices and upstream provenance are retained.
+
+`AgentUsageProduct` owns independent identity, while `FleetMode` now describes
+only the active data scope. A new installation uses native Syrtis; an existing
+fleet configuration keeps its current scope. The user can select the next-launch
+scope from General settings or the popover's scope header. Restart is deliberate:
+collectors, quota providers, persisted snapshots and account registries cannot
+silently switch underneath in-flight requests. Each mode keeps its original
+accounting semantics and the UI names the active scope explicitly.
+
+The native lane restores original account management, quota history/cycles,
+subscription attribution, window-local usage, named agent/session reports,
+source discovery/import, card layouts, languages, accessibility and optional
+Discord behavior. Fleet remains an additional aggregation surface, including
+WorkBuddy, rather than a replacement implementation of these native features.
+Native service access follows the user's configured accounts and settings;
+Discord remains off unless enabled by the user. This implementation restores
+routes and mechanisms, not live qualification for uninstalled providers.
+
+Application-owned native snapshots, quota identity/history and captured accounts
+use Agent Usage's independent namespace. The engine's original configuration
+root is retained: it also contains imported Antigravity/Trae/Warp sources and
+custom pricing, so redirecting it merely to isolate caches would silently omit
+those inputs. Shared engine caches retain upstream behavior. Provider-owned native logins retain
+the upstream mechanisms authorized by the user. Native startup does not import
+Syrtis beta preferences, rename its bundle, or repair its Dock pin. Own native
+snapshot caching is enabled; fleet and diagnostic/demo runs cannot restore or
+write native snapshots. Read-only `--agent-usage-runtime-check` reports source
+selection and registry counts without starting provider queries.
+
+Sparkle is admitted for this product only with an HTTPS feed in the independent
+repository and a valid public signing-key shape. No upstream feed is inherited;
+the currently assembled package has no configured independent feed. Display
+preferences can be previewed/imported without overwriting existing choices and
+undone without removing values changed since import. Accounts, private paths,
+update settings and quota histories are not silently copied.
+
+Native-source restoration does not imply every source is supported by the
+independent fleet collector. Remote extension remains explicit; native and fleet
+figures are not merged and cannot double-count a local host through both paths.
+Full acceptance still requires current-build interaction proof, source/provider
+live qualification where available, independent signing/update qualification and
+the multi-day trial. Historical quota import is explicitly user-triggered and refuses a nonempty target.
+
+
+### Native engine and fleet source inventory
+
+This inventory is derived from the pinned engine registry, not icon presence.
+Local parser versus import/sync is the engine's `parse_local` capability. The
+native entry points and their upstream implementation are retained; installation
+and live format coverage remain per-source qualifications. Fleet coverage is a
+separate contract and is not inferred from native availability.
+
+| Source ID | Native engine path | Independent fleet collector |
+|---|---|---|
+| `opencode` | Local parser | Not implemented |
+| `claude` | Local parser | Claude JSONL |
+| `codex` | Local parser | Codex JSONL |
+| `cursor` | Import/sync | Not implemented |
+| `gemini` | Local parser | Not implemented |
+| `amp` | Local parser | Not implemented |
+| `droid` | Local parser | Not implemented |
+| `openclaw` | Local parser | OpenClaw SQLite / dedicated Codex |
+| `pi` | Local parser | Not implemented |
+| `kimi` | Local parser | Not implemented |
+| `qwen` | Local parser | Not implemented |
+| `roocode` | Local parser | Not implemented |
+| `kilocode` | Local parser | Not implemented |
+| `mux` | Local parser | Not implemented |
+| `kilo` | Local parser | Not implemented |
+| `crush` | Local parser | Not implemented |
+| `hermes` | Local parser | Hermes SQLite |
+| `copilot` | Local parser | Not implemented |
+| `goose` | Local parser | Not implemented |
+| `codebuff` | Local parser | Not implemented |
+| `antigravity` | Local parser | Not implemented |
+| `zed` | Local parser | Not implemented |
+| `kiro` | Local parser | Not implemented |
+| `trae` | Local parser | Not implemented |
+| `warp` | Import/sync | Not implemented |
+| `cline` | Local parser | Not implemented |
+| `antigravity-cli` | Local parser | agy SQLite |
+| `jcode` | Local parser | Not implemented |
+| `micode` | Local parser | Not implemented |
+| `gjc` | Local parser | Not implemented |
+| `grok` | Local parser | Not implemented |
+| `junie` | Local parser | Not implemented |
+| `opencodereview` | Local parser | Not implemented |
+| `zcode` | Local parser | Not implemented |
+| `augment` | Local parser | Not implemented |
+| `hindsight` | Local parser | Not implemented |
+| `muse` | Local parser | Not implemented |
+| `reasonix` | Local parser | Not implemented |
+| `kimchi` | Local parser | Not implemented |
+| `senpi` | Local parser | Not implemented |
+| `omp` | Local parser | Not implemented |
+| `dsh` | Local parser | Not implemented |
+| `workbuddy` | Not in the pinned upstream engine | WorkBuddy JSONL |
+
+The native quota table contains Codex, Claude, Antigravity, Copilot, Grok,
+Grok Bot, Kiro and OpenCode. These are restored upstream integrations, distinct
+from fleet's Codex/Claude/agy bridges. Availability follows native account
+configuration and provider responses; a registry entry is never proof of a
+working account or a live acceptance result.
+
+
+### Explicit quota-history migration
+
+Before first native use, General settings can preview and import an existing
+Syrtis quota-history store into the independent `native-history` directory.
+Account-history metadata and its installation key travel with the history, so
+old series retain their identity. These are history-binding artifacts, not
+provider login tickets. The original metadata decoder verifies its MAC and
+payload; the original history validator checks the store before copying.
+
+Both source writer locks are held shared/nonblocking during the read. Files
+must be regular owner-only single-link files; symlinks, missing artifacts,
+malformed metadata/history and busy writers fail explicitly. The destination
+must not exist. Three files are staged privately and published with one macOS
+no-replace directory rename. Concurrent native initialization wins safely;
+there is no overwrite or partial visible import. Failed stages are removed,
+and the source is never modified. A nonempty destination is not merged because
+its account-history key may differ. Tests exercise the actual importer, source
+byte preservation, preview no-write, authenticated-pair rejection, writer
+contention and no-replace publication.
+
+
+### Current fork-integration verification
+
+The pinned engine library suite passed 1,729 checks (one upstream ignored test);
+DSH's 15 targeted checks include materialized/streaming parity. FFI passed 634
+checks (seven upstream ignored tests), including the new import and storage
+isolation checks. A separate process with the independent runtime flag exercised
+the actual history path and captured-account command builders. 60 Swift projection,
+mode, snapshot isolation, feed admission, localization and migration checks pass; the original
+application selftest passes both bare and in the independent app bundle.
+Packaged runtime checks report native-source selection in native scope and fleet
+selection in fleet scope, 42 engine IDs, eight quota providers, and no active
+update channel in the current package. These checks do not query live accounts.
+
+Computer Use denied access to the isolated demo application. The user explicitly
+chose to defer interactive acceptance and continue automated verification. No
+permission workaround was used and the demo was stopped. Source/account-specific
+live qualification and the multi-day trial remain separate. This machine has no
+valid Developer ID signing identity; the current package remains locally ad-hoc
+signed. The independent updater can be configured with `AGENT_USAGE_FEED_URL`
+and `AGENT_USAGE_UPDATE_PUBLIC_KEY` at packaging time; it never inherits the
+upstream feed. Version 0.2.0 exposes its build revision in About.

@@ -223,6 +223,7 @@ struct SettingsPanel: View {
             case .usageAttribution:
                 if FleetMode.enabled {Text("在线额度可在额度页查看；本地用量不推断订阅归属")} else {usageAttributionPage()}
             case .general:
+                if AgentUsageProduct.enabled {AgentUsageModeSettings()}
                 if FleetMode.enabled {fleetGeneralPage()} else {generalPage()}
             case .about:
                 aboutPage()
@@ -257,11 +258,11 @@ struct SettingsPanel: View {
                 }
             }
         }
-        .alert(FleetMode.enabled ? "Restart Agent Usage?".localized:"Restart Syrtis?".localized, isPresented: $showLanguageRestartPrompt) {
+        .alert(AgentUsageProduct.enabled ? "Restart Agent Usage?".localized:"Restart Syrtis?".localized, isPresented: $showLanguageRestartPrompt) {
             Button("Later", role: .cancel) {}
             Button("Restart Now") { AppRelauncher.relaunch() }
         } message: {
-            Text(FleetMode.enabled ? "Restart Agent Usage to apply the new language.".localized:"Restart Syrtis to apply the new language.".localized)
+            Text(AgentUsageProduct.enabled ? "Restart Agent Usage to apply the new language.".localized:"Restart Syrtis to apply the new language.".localized)
         }
         .task(id: attributionInputSignature) {
             refreshAttributionSuggestions()
@@ -965,7 +966,7 @@ struct SettingsPanel: View {
                         showLanguageRestartPrompt = true
                     }),
                 options: AppLanguage.allCases.map { ($0.rawValue, $0.label) })
-            hint(FleetMode.enabled ? "Takes effect the next time Agent Usage starts.":"Takes effect the next time Syrtis starts.")
+            hint(AgentUsageProduct.enabled ? "Takes effect the next time Agent Usage starts.":"Takes effect the next time Syrtis starts.")
         }
     }
 
@@ -1301,6 +1302,9 @@ struct SettingsPanel: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if AgentUsageProduct.enabled {
+                row("构建版本") {Text(Bundle.main.object(forInfoDictionaryKey:"AgentUsageRevision") as? String ?? "development").font(.caption).foregroundStyle(.secondary)}
+            }
             if UpdaterService.isAvailable {
                 row("Check for updates") {
                     Button("Check Now") { UpdaterService.shared.checkForUpdates() }
@@ -1313,7 +1317,8 @@ struct SettingsPanel: View {
                         .labelsHidden()
                 }
             }
-            if FleetMode.enabled {hint("Agent Usage 基于 Syrtis v2.7.0 的 MIT 许可 UI 进行修改，接入独立 collector/fleet。上游作者与第三方版权声明随应用保留。") }
+            if AgentUsageProduct.enabled && !UpdaterService.isAvailable {hint("独立更新渠道尚未配置；当前版本使用手动更新，不连接 Syrtis 的更新源。") }
+            if AgentUsageProduct.enabled {hint("Agent Usage 基于 Syrtis v2.9.0 的 MIT 许可 UI 进行修改，接入独立 collector/fleet。上游作者与第三方版权声明随应用保留。") }
             hint("Syrtis started as a fork of tokcat by handlecusion. Log parsing and pricing come from tokscale by Junho Yeo, the menu bar design draws on CodexBar by Peter Steinberger, and the running cat comes from RunCat by Takuto Nakamura. MIT licensed.")
         }
     }

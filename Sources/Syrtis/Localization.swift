@@ -91,7 +91,7 @@ enum AppRelauncher {
     /// Starts a new app instance before terminating this one. Waiting for
     /// NSWorkspace's completion keeps a failed launch from quitting the
     /// currently working app.
-    static func relaunch() {
+    static func relaunch(arguments:[String] = []) {
         guard Bundle.main.bundleURL.pathExtension == "app" else {
             NSSound.beep()
             return
@@ -99,6 +99,7 @@ enum AppRelauncher {
 
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
+        configuration.arguments=arguments
         NSWorkspace.shared.openApplication(
             at: Bundle.main.bundleURL,
             configuration: configuration

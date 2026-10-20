@@ -15,7 +15,21 @@ import Sparkle
 final class UpdaterService: NSObject, SPUUpdaterDelegate {
     static let shared = UpdaterService()
 
-    nonisolated static var isAvailable: Bool { !FleetMode.enabled && Bundle.main.bundleURL.pathExtension == "app" }
+    nonisolated static func independentFeedAllowed(identifier:String?,feed:String?,publicKey:String?) -> Bool {
+        guard identifier==AgentUsageProduct.identifier,let feed,let url=URL(string:feed),url.scheme=="https",
+              url.user==nil,url.password==nil,url.query==nil,url.fragment==nil,(url.port==nil || url.port==443),
+              ["github.com","raw.githubusercontent.com"].contains(url.host ?? ""),
+              Array(url.pathComponents.dropFirst().prefix(2))==["flyresearch","agent-usage-ui"],
+              let publicKey,Data(base64Encoded:publicKey)?.count==32 else {return false}
+        return true
+    }
+    nonisolated static var isAvailable: Bool {
+        guard Bundle.main.bundleURL.pathExtension=="app" else {return false}
+        if !AgentUsageProduct.enabled {return true}
+        return independentFeedAllowed(identifier:Bundle.main.bundleIdentifier,
+            feed:Bundle.main.object(forInfoDictionaryKey:"SUFeedURL") as? String,
+            publicKey:Bundle.main.object(forInfoDictionaryKey:"SUPublicEDKey") as? String)
+    }
 
     /// Display version of an available update (nil = up to date / unknown).
     private(set) var availableVersion: String?
