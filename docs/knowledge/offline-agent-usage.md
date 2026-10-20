@@ -1028,3 +1028,15 @@ The automatic scheduler is excluded from demo/diagnostic runs, and the animation
 CPU-test entry returns before runtime services start. Independent update checks
 are likewise unavailable in non-user runs. Core checks, including real collector
 integration, pass 52 cases after adding the scheduler policy check.
+
+
+### Coverage diagnostics navigation
+
+Coverage details open in a separate resizable window instead of expanding the
+popover header. The report body uses a lazy scrolling stack; the fixed header
+keeps Return to Overview accessible regardless of source count. Return, Escape
+and the window close control reopen the fleet popover. The window displays a
+captured report to avoid moving rows during refresh, and releases that report
+on close. This removes the unbounded header that could push navigation outside
+the visible popover. Build and fleet projection checks cover compilation and
+existing data behavior; actual mouse/keyboard acceptance remains pending.

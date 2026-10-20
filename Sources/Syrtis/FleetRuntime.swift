@@ -52,6 +52,8 @@ import TokenBarCore
     private var clientPreferenceSignature=""
     private var clientIDs:[String]=[]
 
+    func showPopover() { controller?.showPopover() }
+
     func startBackgroundCollection() {
         guard !FleetMode.enabled,backgroundTask==nil else {return}
         backgroundTask=Task {
