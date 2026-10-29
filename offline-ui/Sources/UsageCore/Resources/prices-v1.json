@@ -74,6 +74,38 @@
       "reasoning": "3.96",
       "source": "https://api-docs.deepseek.com/quick_start/pricing/"
     },
+    "gemini-3.6-flash": {
+      "cache_read": "0.075",
+      "cache_write": null,
+      "input": "0.75",
+      "output": "3.75",
+      "reasoning": "3.75",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-3.8-flash": {
+      "cache_read": "0.075",
+      "cache_write": null,
+      "input": "0.75",
+      "output": "3.75",
+      "reasoning": "3.75",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-4-argon": {
+      "cache_read": "0.1",
+      "cache_write": null,
+      "input": "2",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-4-argon-trial": {
+      "cache_read": "0.1",
+      "cache_write": null,
+      "input": "2",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
     "gpt-5": {
       "cache_read": "0.125",
       "cache_write": null,
@@ -204,5 +236,5 @@
     }
   },
   "schema_version": 1,
-  "version": "2026-10-15.standard-v1"
+  "version": "2026-10-29.standard-v1"
 }

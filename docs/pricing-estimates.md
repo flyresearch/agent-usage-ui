@@ -3,7 +3,7 @@
 The UI adapts the original Syrtis cost fields from normalized collector rows.
 The collector never contacts a pricing endpoint. The bundled catalog is
 `offline-ui/Sources/UsageCore/Resources/prices-v1.json`; each exact model entry
-carries its official source URL. Version `2026-10-15.standard-v1` contains 25
+carries its official source URL. Version `2026-10-29.standard-v1` contains 29
 reviewed model rates, in USD per million tokens.
 
 This is current-directory repricing of known tokens, not historical actual
@@ -19,6 +19,14 @@ Rates were verified against official model pages and the following price pages:
 - [OpenAI pricing](https://developers.openai.com/api/docs/pricing), with individual model-page URLs retained in the catalog.
 - [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing).
 - [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/).
+- [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing), paid tier.
+  Gemini 3.6/3.8 Flash use the list price valid through 2026-12-31 and Gemini 4
+  Argon the list price valid through 2026-11-30; both double afterwards, so the
+  catalog must be revised then. Gemini has no separate cache-write price, so
+  `cache_write` is null. The agy label `gemini-4-argon-trial` is not listed
+  separately and is deliberately priced at `gemini-4-argon` list rates; it is an
+  estimate, not an agy subscription charge. `gemini-3.8-flash-n` has no official
+  price and stays unpriced.
 
 `PriceCatalog` validates schema, currency, version, labels and decimal rates,
 then multiplies the five mutually exclusive buckets once. Reasoning uses the
