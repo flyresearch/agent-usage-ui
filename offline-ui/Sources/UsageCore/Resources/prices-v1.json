@@ -218,6 +218,14 @@
       "reasoning": "50",
       "source": "https://developers.openai.com/api/docs/models/gpt-6-astra"
     },
+    "gpt-6-luna": {
+      "cache_read": "0.01",
+      "cache_write": "0.125",
+      "input": "0.1",
+      "output": "0.5",
+      "reasoning": "0.5",
+      "source": "https://developers.openai.com/api/docs/models/gpt-6-luna"
+    },
     "gpt-6-sol": {
       "cache_read": "0.2",
       "cache_write": "2.5",
@@ -236,5 +244,5 @@
     }
   },
   "schema_version": 1,
-  "version": "2026-10-29.standard-v1"
+  "version": "2026-10-29.standard-v2"
 }

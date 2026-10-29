@@ -3,7 +3,7 @@
 The UI adapts the original Syrtis cost fields from normalized collector rows.
 The collector never contacts a pricing endpoint. The bundled catalog is
 `offline-ui/Sources/UsageCore/Resources/prices-v1.json`; each exact model entry
-carries its official source URL. Version `2026-10-29.standard-v1` contains 29
+carries its official source URL. Version `2026-10-29.standard-v2` contains 30
 reviewed model rates, in USD per million tokens.
 
 This is current-directory repricing of known tokens, not historical actual
@@ -26,7 +26,8 @@ Rates were verified against official model pages and the following price pages:
   `cache_write` is null. The agy label `gemini-4-argon-trial` is not listed
   separately and is deliberately priced at `gemini-4-argon` list rates; it is an
   estimate, not an agy subscription charge. `gemini-3.8-flash-n` has no official
-  price and stays unpriced.
+  price and stays unpriced. `gpt-5.4-codex` is not on the OpenAI price page and
+  stays unpriced.
 
 `PriceCatalog` validates schema, currency, version, labels and decimal rates,
 then multiplies the five mutually exclusive buckets once. Reasoning uses the
