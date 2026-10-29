@@ -241,8 +241,16 @@
       "output": "10",
       "reasoning": "10",
       "source": "https://developers.openai.com/api/docs/models/gpt-6.1-sol"
+    },
+    "qwen3.8-27b-uncensored": {
+      "cache_read": "0.006",
+      "cache_write": null,
+      "input": "0.3",
+      "output": "1.2",
+      "reasoning": "1.2",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/"
     }
   },
   "schema_version": 1,
-  "version": "2026-10-29.standard-v2"
+  "version": "2026-10-29.standard-v3"
 }

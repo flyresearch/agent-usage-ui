@@ -3,7 +3,7 @@
 The UI adapts the original Syrtis cost fields from normalized collector rows.
 The collector never contacts a pricing endpoint. The bundled catalog is
 `offline-ui/Sources/UsageCore/Resources/prices-v1.json`; each exact model entry
-carries its official source URL. Version `2026-10-29.standard-v2` contains 30
+carries its official source URL. Version `2026-10-29.standard-v3` contains 31
 reviewed model rates, in USD per million tokens.
 
 This is current-directory repricing of known tokens, not historical actual
@@ -18,7 +18,9 @@ Rates were verified against official model pages and the following price pages:
 
 - [OpenAI pricing](https://developers.openai.com/api/docs/pricing), with individual model-page URLs retained in the catalog.
 - [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing).
-- [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/).
+- [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/). The
+  self-hosted `qwen3.8-27b-uncensored` has no list price and is deliberately
+  priced at `deepseek-flash` rates as an owner-chosen reference.
 - [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing), paid tier.
   Gemini 3.6/3.8 Flash use the list price valid through 2026-12-31 and Gemini 4
   Argon the list price valid through 2026-11-30; both double afterwards, so the
