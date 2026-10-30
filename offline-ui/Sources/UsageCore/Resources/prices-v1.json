@@ -244,7 +244,7 @@
     },
     "qwen3.8-27b-uncensored": {
       "cache_read": "0.006",
-      "cache_write": null,
+      "cache_write": "0.3",
       "input": "0.3",
       "output": "1.2",
       "reasoning": "1.2",

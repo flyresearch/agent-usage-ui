@@ -20,7 +20,9 @@ Rates were verified against official model pages and the following price pages:
 - [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing).
 - [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/). The
   self-hosted `qwen3.8-27b-uncensored` has no list price and is deliberately
-  priced at `deepseek-flash` rates as an owner-chosen reference.
+  priced at `deepseek-flash` rates as an owner-chosen reference. Because it is
+  served through Claude Code and reports cache writes, its `cache_write` uses
+  the `deepseek-flash` input (cache-miss) rate.
 - [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing), paid tier.
   Gemini 3.6/3.8 Flash use the list price valid through 2026-12-31 and Gemini 4
   Argon the list price valid through 2026-11-30; both double afterwards, so the
