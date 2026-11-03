@@ -72,6 +72,22 @@ func configurationChecks(_ check: (String, () throws -> Void) -> Void) {
         try Data("{\"schema_version\":1,\"host_id\":\"fixture\",\"sources\":[],\"new_private_option\":true}".utf8).write(to: config)
         try rejects { _ = try ConfigurationEditor.load(settings: settings) }
     }
+    check("configuration_policy_import_and_source_changes_fail_closed") {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file=root.appendingPathComponent("config.json")
+        let value: [String: Any] = ["schema_version":1, "host_id":"fixture", "sources":[["id":"main", "adapter":"codex-jsonl", "paths":[root.path]]], "model_name_policy":["mode":"pattern", "sources":["main":["gpt-"]]]]
+        try JSONSerialization.data(withJSONObject:value).write(to:file)
+        let settings=CollectorSettings(executable:"/bin/echo", configuration:file.path, stateDirectory:root.appendingPathComponent("state").path)
+        var draft=try ConfigurationEditor.load(settings:settings)
+        try require(draft.hosts[0].modelNamePrefixes == ["main":["gpt-"]])
+        try ConfigurationEditor.validate(draft)
+        draft.hosts[0].sources[0].name="renamed"
+        try rejects { try ConfigurationEditor.validate(draft) }
+        draft.hosts[0].sources[0].name="main";draft.hosts[0].modelNamePrefixes=["main":["gpt-", "gpt-"]]
+        try rejects { try ConfigurationEditor.validate(draft) }
+    }
     check("configuration_import_rejects_malformed_optional_fields_and_reads_backups") {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -118,6 +134,7 @@ func configurationChecks(_ check: (String, () throws -> Void) -> Void) {
             try Data("{\"type\":\"event_msg\",\"timestamp\":\"2026-01-01T00:00:00Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":10,\"output_tokens\":2}}}}\n".utf8).write(to: logs.appendingPathComponent("a.jsonl"))
             let settings = CollectorSettings(executable: binary, configuration: "", stateDirectory: root.appendingPathComponent("live-state").path, fleetMode: true)
             var host = HostDraft(name: "fixture", executable: binary); host.sources = [SourceDraft(name: "source", paths: [logs.path])]
+            host.modelNamePrefixes = ["source": ["gpt-"]]
             let draft = ConfigurationDraft(settings: settings, hosts: [host])
             let prepared = try ConfigurationEditor.prepare(draft, root: root.appendingPathComponent("candidates"))
             guard case .fleet(let fleet) = prepared.result else { throw CheckFailure.failed }
@@ -136,6 +153,7 @@ func configurationChecks(_ check: (String, () throws -> Void) -> Void) {
             let saved = try ConfigurationEditor.read(connection)
             let restored = try ConfigurationEditor.load(settings: JSONDecoder().decode(CollectorSettings.self, from: saved))
             try require(restored.hosts[0].sources[0].paths == [logs.path])
+            try require(restored.hosts[0].modelNamePrefixes == ["source": ["gpt-"]])
             try rejects { try ConfigurationEditor.publish(prepared, connection: connection, expected: nil) }
             try require(ConfigurationEditor.read(connection) == saved)
             // A change to an imported source config fences both prepare and publication.
@@ -158,7 +176,8 @@ func configurationChecks(_ check: (String, () throws -> Void) -> Void) {
             let local = try ConfigurationEditor.prepare(single, root: root.appendingPathComponent("candidates"))
             guard case .local(let snapshot) = local.result else { throw CheckFailure.failed }
             try require(snapshot.totals.total == 12)
-            try require(ConfigurationEditor.load(settings: local.settings).hosts.count == 1)
+            let loadedLocal = try ConfigurationEditor.load(settings: local.settings)
+            try require(loadedLocal.hosts.count == 1 && loadedLocal.hosts[0].modelNamePrefixes == ["source": ["gpt-"]])
         }
         check("configuration_failed_trial_keeps_live_connection_and_removes_candidate") {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

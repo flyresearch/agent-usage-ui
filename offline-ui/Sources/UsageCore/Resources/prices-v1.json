@@ -18,6 +18,14 @@
       "reasoning": "0.5",
       "source": "https://platform.claude.com/docs/en/about-claude/pricing"
     },
+    "claude-opus-4-6": {
+      "cache_read": "0.5",
+      "cache_write": "6.25",
+      "input": "5",
+      "output": "25",
+      "reasoning": "25",
+      "source": "https://platform.claude.com/docs/en/models/opus-4-6/overview"
+    },
     "claude-opus-4-8": {
       "cache_read": "0.5",
       "cache_write": "6.25",
@@ -41,6 +49,14 @@
       "output": "20",
       "reasoning": "20",
       "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    "claude-sonnet-4-6": {
+      "cache_read": "0.3",
+      "cache_write": "3.75",
+      "input": "3",
+      "output": "15",
+      "reasoning": "15",
+      "source": "https://platform.claude.com/docs/en/models/sonnet-4-6/overview"
     },
     "claude-sonnet-5": {
       "cache_read": "0.2",
@@ -73,6 +89,54 @@
       "output": "3.96",
       "reasoning": "3.96",
       "source": "https://api-docs.deepseek.com/quick_start/pricing/"
+    },
+    "deepseek-v4.1-flash": {
+      "cache_read": "0.006",
+      "cache_write": null,
+      "input": "0.3",
+      "output": "1.2",
+      "reasoning": "1.2",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/"
+    },
+    "gemini-2.5-flash": {
+      "cache_read": "0.03",
+      "cache_write": null,
+      "input": "0.3",
+      "output": "2.5",
+      "reasoning": "2.5",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-2.5-pro": {
+      "cache_read": "0.125",
+      "cache_write": null,
+      "input": "1.25",
+      "output": "10",
+      "reasoning": "10",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-3-flash-preview": {
+      "cache_read": "0.05",
+      "cache_write": null,
+      "input": "0.5",
+      "output": "3",
+      "reasoning": "3",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-3.1-flash-lite": {
+      "cache_read": "0.025",
+      "cache_write": null,
+      "input": "0.25",
+      "output": "1.5",
+      "reasoning": "1.5",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-3.1-pro-preview": {
+      "cache_read": "0.2",
+      "cache_write": null,
+      "input": "2",
+      "output": "12",
+      "reasoning": "12",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
     },
     "gemini-3.6-flash": {
       "cache_read": "0.075",
@@ -242,6 +306,14 @@
       "reasoning": "10",
       "source": "https://developers.openai.com/api/docs/models/gpt-6.1-sol"
     },
+    "gpt-6.1-terra": {
+      "cache_read": "0.05",
+      "cache_write": "1.25",
+      "input": "1",
+      "output": "5",
+      "reasoning": "5",
+      "source": "https://developers.openai.com/api/docs/models/gpt-6.1-terra"
+    },
     "qwen3.8-27b-uncensored": {
       "cache_read": "0.006",
       "cache_write": "0.3",
@@ -252,5 +324,5 @@
     }
   },
   "schema_version": 1,
-  "version": "2026-10-29.standard-v3"
+  "version": "2026-11-03.standard-v4"
 }

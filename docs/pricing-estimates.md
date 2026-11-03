@@ -3,7 +3,7 @@
 The UI adapts the original Syrtis cost fields from normalized collector rows.
 The collector never contacts a pricing endpoint. The bundled catalog is
 `offline-ui/Sources/UsageCore/Resources/prices-v1.json`; each exact model entry
-carries its official source URL. Version `2026-10-29.standard-v3` contains 31
+carries its official source URL. Version `2026-11-03.standard-v4` contains 40
 reviewed model rates, in USD per million tokens.
 
 This is current-directory repricing of known tokens, not historical actual
@@ -16,6 +16,7 @@ silently mapped to their replacements. Unknown model labels stay unpriced.
 
 Rates were verified against official model pages and the following price pages:
 
+- The `deepseek-v4.1-flash` model label uses DeepSeek-V4.1-Flash official peak rates as a model-level reference, not a WorkBuddy reseller quote; the official endpoint is named `deepseek-flash`.
 - [OpenAI pricing](https://developers.openai.com/api/docs/pricing), with individual model-page URLs retained in the catalog.
 - [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing).
 - [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/). The
@@ -59,3 +60,5 @@ counting and collector checks. `Syrtis --fleet-report-check PRIVATE_REPORT`
 validates an actual fleet envelope through the shipping projection without
 printing machine IDs, usage amounts or source paths. Keep private reports and
 host deployment evidence outside Git.
+
+The catalog also includes the official short-context standard text rates for Claude Opus 4.6 and Sonnet 4.6, GPT-6.1 Terra, Gemini 2.5 Flash/Pro, Gemini 3 Flash Preview, Gemini 3.1 Flash-Lite and Gemini 3.1 Pro Preview. Gemini 2.5 Flash/Pro are scheduled to route to other models on 2026-12-01; recheck prices then. Aggregates cannot distinguish longer prompts or multimedia pricing. Internal or ambiguous model labels remain unpriced unless their model identity and pricing basis are established.

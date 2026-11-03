@@ -30,9 +30,11 @@ public struct HostDraft: Identifiable, Sendable {
     public var cache: String
     public var sources: [SourceDraft]
     public var aliases: [AliasDraft]
+    // Preserved across edits; source policies are configured externally.
+    public var modelNamePrefixes: [String: [String]]?
     public init(name: String = "local", remote: Bool = false, executable: String = "") {
         self.name = name; self.remote = remote; self.executable = executable
-        destination = ""; configuration = ""; shell = "posix"; cache = ""; sources = []; aliases = []
+        destination = ""; configuration = ""; shell = "posix"; cache = ""; sources = []; aliases = []; modelNamePrefixes = nil
     }
 }
 public struct ConfigurationDraft: Sendable {
@@ -104,7 +106,7 @@ public enum ConfigurationEditor {
         return draft
     }
     private static func local(_ data: Data, into host: inout HostDraft) throws {
-        let o = try object(data, keys: ["schema_version", "host_id", "sources", "model_aliases"])
+        let o = try object(data, keys: ["schema_version", "host_id", "sources", "model_aliases", "model_name_policy"])
         guard try integer(o, "schema_version") == 1, let name = o["host_id"] as? String,
               let sources = o["sources"] as? [[String: Any]] else { throw ConfigurationEditError.invalid }
         guard host.name == name else { throw ConfigurationEditError.invalid }
@@ -117,6 +119,11 @@ public enum ConfigurationEditor {
         if let value = o["model_aliases"] { guard let map = value as? [String: String] else { throw ConfigurationEditError.invalid }; aliases = map }
         else { aliases = [:] }
         host.aliases = aliases.sorted { $0.key < $1.key }.map { AliasDraft(raw: $0.key, name: $0.value) }
+        if let value = o["model_name_policy"] {
+            guard let policy = value as? [String: Any], Set(policy.keys) == ["mode", "sources"],
+                  policy["mode"] as? String == "pattern", let sources = policy["sources"] as? [String: [String]] else { throw ConfigurationEditError.invalid }
+            host.modelNamePrefixes = sources
+        }
     }
     public static func load(settings: CollectorSettings) throws -> ConfigurationDraft {
         var draft = ConfigurationDraft(settings: settings)
@@ -145,7 +152,7 @@ public enum ConfigurationEditor {
                 draft.hosts.append(host)
             }
         } else {
-            let o = try object(input, keys: ["schema_version", "host_id", "sources", "model_aliases"])
+            let o = try object(input, keys: ["schema_version", "host_id", "sources", "model_aliases", "model_name_policy"])
             guard let name = o["host_id"] as? String else { throw ConfigurationEditError.invalid }
             var host = HostDraft(name: name, executable: settings.executable)
             try local(input, into: &host); draft.hosts = [host]
@@ -185,6 +192,19 @@ public enum ConfigurationEditor {
                       !host.sources.isEmpty, Set(host.sources.map(\.name)).count == host.sources.count,
                       Set(host.aliases.map(\.raw)).count == host.aliases.count,
                       host.aliases.allSatisfy({ !$0.raw.isEmpty && label($0.name) }) else { throw ConfigurationEditError.invalid }
+                if let policies = host.modelNamePrefixes {
+                    guard !policies.isEmpty, policies.count <= 64 else { throw ConfigurationEditError.invalid }
+                    for (source, prefixes) in policies {
+                        guard host.sources.contains(where: { $0.name == source }), !prefixes.isEmpty, prefixes.count <= 32,
+                              Set(prefixes).count == prefixes.count else { throw ConfigurationEditError.invalid }
+                        for prefix in prefixes {
+                            let bytes = Array(prefix.utf8)
+                            guard (1...48).contains(bytes.count), let first = bytes.first,
+                                  (65...90).contains(first) || (97...122).contains(first), bytes.last == 45,
+                                  label(prefix) else { throw ConfigurationEditError.invalid }
+                        }
+                    }
+                }
                 var roots = [String]()
                 for source in host.sources {
                     guard label(source.name), SourceDraft.adapters.contains(source.adapter), !source.paths.isEmpty else { throw ConfigurationEditError.invalid }
@@ -250,8 +270,10 @@ public enum ConfigurationEditor {
                 try fm.createDirectory(at: hostRoot, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
                 config = hostRoot.appendingPathComponent("config.json").path
                 let aliases = Dictionary(uniqueKeysWithValues: host.aliases.map { ($0.raw, $0.name) })
-                try write(json(["schema_version": 1, "host_id": host.name, "model_aliases": aliases,
-                                "sources": host.sources.map { ["id": $0.name, "adapter": $0.adapter, "paths": $0.paths] as [String: Any] }]), to: URL(fileURLWithPath: config))
+                var local: [String: Any] = ["schema_version": 1, "host_id": host.name, "model_aliases": aliases,
+                    "sources": host.sources.map { ["id": $0.name, "adapter": $0.adapter, "paths": $0.paths] as [String: Any] }]
+                if let prefixes = host.modelNamePrefixes { local["model_name_policy"] = ["mode": "pattern", "sources": prefixes] }
+                try write(json(local), to: URL(fileURLWithPath: config))
                 sealed[config] = try read(URL(fileURLWithPath: config))
                 hash = try identity(LocalCollector.execute(settings, arguments: ["config-id", "--config", config], timeout: 15), host: host.name)
                 onlyLocalPath = config

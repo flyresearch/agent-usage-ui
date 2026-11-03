@@ -73,6 +73,19 @@ func decodeFleet(_ value:[String:Any]) throws ->FleetSnapshot {try FleetSnapshot
             var bad=rates;bad["currency"]="EUR";try rejects {_=try PriceCatalog.decode(JSONSerialization.data(withJSONObject:bad))}
             try require(!PriceCatalog.bundled().rates.isEmpty)
         }
+        check("bundled_catalog_current_model_rates") {
+            let catalog=try PriceCatalog.bundled()
+            try require(catalog.version=="2026-11-03.standard-v4")
+            try require(catalog.rates["gpt-6.1-terra"]?.input=="1" && catalog.rates["gpt-6.1-terra"]?.cache_read=="0.05")
+            try require(catalog.rates["claude-opus-4-6"]?.cache_write=="6.25")
+            try require(catalog.rates["gemini-3.1-pro-preview"]?.output=="12")
+            try require(catalog.rates["deepseek-v4.1-flash"]?.cache_read=="0.006")
+            var value=fixture();var rows=value["rows"] as! [[String:Any]]
+            rows[0]["model"]="gpt-6.1-terra";value["rows"]=rows
+            try require(catalog.estimate(decode(value).rows[0]) != nil)
+            rows[0]["model"]="gemini-3.8-flash-n";value["rows"]=rows
+            try require(catalog.estimate(decode(value).rows[0]) == nil)
+        }
         check("message_partial_coverage_and_overflow") {
             let old=try decode(fixture());try require(MessageCount.total(old.rows)==MessageCount())
             var v=fixture();var rows=v["rows"] as! [[String:Any]];rows[0]["messages"]=["known":2,"complete":true];v["rows"]=rows

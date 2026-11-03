@@ -1080,3 +1080,7 @@ Verification for this change: 61 Swift projection/integration checks passed,
 636 FFI tests passed (eight ignored, including the policy-only test run separately),
 both isolated policy invocations passed, and four statusLine script tests passed.
 Documentation checks passed. GUI mouse/keyboard acceptance remains deferred.
+
+## Preserving automatic model-name policies
+
+The collector's optional `model_name_policy` is preserved by the fleet configuration editor when loading and preparing a local collector configuration. Its source-scoped prefixes remain an explicit opt-in; the editor does not silently expand or infer them. Removing or renaming an authorized source makes validation fail until the policy is reconciled, preventing a save that silently drops or redirects the authorization. Remote source configurations remain remote-owned and are identified by the collector as before. The bundled collector must understand the policy before a single-host candidate containing it can be collected. Integration checks exercise local and fleet round trips against the actual collector; UI interaction and live fleet qualification are separate evidence.
