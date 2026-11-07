@@ -409,202 +409,20 @@ fn should_try_agy_fallback(failure: &ProviderFetchFailure) -> bool {
     matches!(failure, ProviderFetchFailure::Terminal { .. })
 }
 
-/// The host whose DNS failure precedes the CLI's interactive escalation.
-///
-/// `agy --print` is documented as non-interactive, and it is not: with an
-/// expired cached token and no resolver it logs
-/// `lookup oauth2.googleapis.com: no such host`, promotes that network failure
-/// to an authentication failure, and opens a browser tab for a consumer OAuth
-/// flow (#329). A quota poll must not be able to start that.
-#[cfg(target_os = "macos")]
-const OAUTH_TOKEN_HOST: &str = "oauth2.googleapis.com";
-
-/// Whether the CLI's token endpoint resolves right now.
-///
-/// DNS only. The escalation in #329 is gated on resolution failing, so a
-/// connect would buy no additional signal and would spend a real round trip on
-/// every poll. Two seconds because this runs ahead of a subprocess that is
-/// already allowed 35, and a resolver that has not answered in two is the
-/// just-woken state this guards.
-#[cfg(target_os = "macos")]
-async fn oauth_endpoint_resolves() -> bool {
-    match tokio::time::timeout(
-        std::time::Duration::from_secs(2),
-        tokio::net::lookup_host((OAUTH_TOKEN_HOST, 443)),
-    )
-    .await
-    {
-        // An empty answer is not a usable resolution, so it is treated as a
-        // failure rather than as "resolved with no addresses".
-        Ok(Ok(mut addresses)) => addresses.next().is_some(),
-        Ok(Err(_)) | Err(_) => false,
-    }
-}
-
-/// Refuse to invoke the CLI when its own token endpoint cannot be resolved.
-///
-/// The guard has to sit in front of the invocation rather than around it. The
-/// call site already wraps the subprocess in a 35-second `timeout` with
-/// `kill_on_drop`, and #329 still recorded a process that started at 13:05:57
-/// and escalated at 13:23:23 — eighteen minutes, across a sleep. A monotonic
-/// timer does not advance while the machine is asleep, so the deadline that
-/// should have killed that process had barely moved when it woke and carried on
-/// to the browser. Anything that manages the child after spawning it is subject
-/// to the same freeze; only not spawning it is not.
-///
-/// The same freeze applies to the logged-out case below: with `agy` signed out,
-/// `agy --print /usage --output-format json --print-timeout 30s </dev/null` was
-/// measured on macOS to open a browser tab on Google's OAuth consent page and
-/// wait there. That is exactly the command this route runs unattended, so the
-/// login check also has to happen before the spawn, not after it.
-///
-/// Taking the runner, the login marker and the latch as parameters is what
-/// lets a test assert the child is never spawned, rather than inferring it
-/// from the returned error.
-///
-/// The latch trade-off: once a real attempt has spawned `agy` and failed, the
-/// route stays off for as long as the login marker is unchanged. A transient
-/// failure after a real spawn therefore disables the `agy` route until the
-/// Keychain item is rewritten (a re-login) or the app restarts, and meanwhile
-/// the card shows the primary route's error, because `with_agy_fallback`
-/// discards this route's failure. Expiring the latch on a timer is
-/// deliberately not implemented: a spawned attempt that failed may be one that
-/// opened the browser, and the failure seen here does not say which, so a
-/// timed retry could repeat it every period.
-async fn fetch_agy_cli_gated<Run, RunFuture>(
-    now: DateTime<Utc>,
-    endpoint_resolves: bool,
-    marker: Option<String>,
-    latch: &std::sync::Mutex<AgyLatch>,
-    run: Run,
-) -> Result<Fetched, ProviderFetchFailure>
-where
-    Run: FnOnce(DateTime<Utc>) -> RunFuture,
-    RunFuture: std::future::Future<Output = Result<Fetched, AgyRunError>>,
-{
-    if !endpoint_resolves {
-        return Err(ProviderFetchFailure::terminal(
-            "Antigravity quota is unavailable while the network is unreachable.",
-        ));
-    }
-    let Some(marker) = marker else {
-        return Err(ProviderFetchFailure::terminal(AGY_NOT_SIGNED_IN));
-    };
-    {
-        // Scoped so the guard is released before the await below: polls can
-        // overlap (there is no per-provider single-flight upstream), and a
-        // std mutex held across an await would block the other poll's thread.
-        let mut state = lock_agy_latch(latch);
-        match &*state {
-            AgyLatch::InFlight => {
-                return Err(ProviderFetchFailure::terminal(
-                    "Antigravity CLI usage is already running.",
-                ));
-            }
-            AgyLatch::Failed { marker: failed, retry_at } if *failed == marker => {
-                match retry_at {
-                    Some(at) if now >= *at => *state = AgyLatch::InFlight,
-                    Some(_) => {
-                        return Err(ProviderFetchFailure::terminal(AGY_TIMED_OUT_RETRYING));
-                    }
-                    None => {
-                        return Err(ProviderFetchFailure::terminal(
-                            "Antigravity CLI usage is paused after a failed attempt.",
-                        ));
-                    }
-                }
-            }
-            AgyLatch::Idle | AgyLatch::Failed { .. } => *state = AgyLatch::InFlight,
-        }
-    }
-    // Created with no await between it and the InFlight write, so a panic in
-    // `run` or a drop of this future mid-flight still leaves the latch Idle.
-    let mut release = AgyLatchRelease {
-        latch,
-        next: AgyLatch::Idle,
-    };
-    let fetched_under = marker.clone();
-    match run(now).await {
-        Ok(mut fetched) => {
-            fetched.agy_login_marker = Some(fetched_under);
-            Ok(fetched)
-        }
-        Err(AgyRunError { failure, spawned }) => {
-            if spawned {
-                // A timeout is transient (agy slow right after an update was
-                // observed 2026-10-03, and the route then stayed latched for
-                // the rest of the process): retry it after a cooldown. Any
-                // other failure of a run that started may be agy asking for
-                // re-authentication, which can open a browser, so it stays
-                // latched until the login marker changes, as before.
-                let timed_out =
-                    matches!(&failure, ProviderFetchFailure::Terminal { display } if display == AGY_TIMED_OUT);
-                release.next = AgyLatch::Failed {
-                    marker,
-                    retry_at: timed_out.then(|| now + chrono::Duration::seconds(AGY_RETRY_SECS)),
-                };
-            }
-            Err(failure)
-        }
-    }
-}
-
-/// Whether the `agy` route may spawn the CLI. `Failed` carries the login
-/// marker that was current when a spawned attempt failed; a different marker
-/// (the Keychain item was rewritten by a re-login) re-arms the route.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum AgyLatch {
-    Idle,
-    InFlight,
-    /// `retry_at` is set only for a timeout: the route re-arms at that time
-    /// for the same login. Nil keeps it latched until the marker changes.
-    Failed {
-        marker: String,
-        retry_at: Option<DateTime<Utc>>,
-    },
-}
-
-const AGY_TIMED_OUT: &str = "Antigravity CLI usage timed out.";
+/// agy's quota for the `agy` leg, through the direct route
+/// ([`direct`]). `agy` itself is never started: its print mode opens a browser
+/// for interactive OAuth whenever silent keyring auth is slow or the endpoint
+/// is unreachable (#329; observed again 2026-11-04 and 2026-11-07), and no
+/// gate in front of a spawn can rule that out. With agy signed out this reads
+/// no secret and makes no request.
 const AGY_NOT_FOUND: &str = "Antigravity CLI was not found.";
 const AGY_NOT_SIGNED_IN: &str = "Antigravity CLI is not signed in.";
-const AGY_TIMED_OUT_RETRYING: &str =
-    "Antigravity CLI usage timed out. Retrying automatically.";
-/// Cooldown after a timed-out `agy /usage`, three tray cycles.
-const AGY_RETRY_SECS: i64 = 15 * 60;
+const AGY_DIRECT_PAUSED: &str =
+    "Antigravity CLI login could not be read. Sign agy in again or restart the app.";
+const AGY_DIRECT_REJECTED: &str = "Antigravity CLI sign-in was rejected. Sign agy in again.";
+const AGY_DIRECT_RETRYING: &str = "Antigravity quota request failed. Retrying automatically.";
+const AGY_DIRECT_UNSUPPORTED: &str = "Antigravity quota response could not be decoded.";
 
-#[cfg(target_os = "macos")]
-static AGY_LATCH: std::sync::Mutex<AgyLatch> = std::sync::Mutex::new(AgyLatch::Idle);
-
-/// A failed `agy` run, with whether any CLI process was actually attempted.
-/// Only an attempted run may latch the route off; "no CLI installed" must not.
-#[derive(Debug)]
-struct AgyRunError {
-    failure: ProviderFetchFailure,
-    spawned: bool,
-}
-
-/// Writes `next` into the latch when dropped, so `InFlight` cannot outlive the
-/// attempt that set it, whether that attempt returns, panics or is cancelled.
-struct AgyLatchRelease<'a> {
-    latch: &'a std::sync::Mutex<AgyLatch>,
-    next: AgyLatch,
-}
-
-impl Drop for AgyLatchRelease<'_> {
-    fn drop(&mut self) {
-        let next = std::mem::replace(&mut self.next, AgyLatch::Idle);
-        *lock_agy_latch(self.latch) = next;
-    }
-}
-
-/// The latch holds no invariant a panic could break halfway, so a poisoned
-/// lock is recovered rather than propagated; propagating would panic inside
-/// `AgyLatchRelease::drop` during an unwind.
-fn lock_agy_latch(latch: &std::sync::Mutex<AgyLatch>) -> std::sync::MutexGuard<'_, AgyLatch> {
-    latch
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
 
 /// The Keychain lookup that answers "is `agy` signed in" — the login keychain
 /// generic-password item `gemini` / `antigravity`. Measured on macOS: exit 0
@@ -655,45 +473,27 @@ async fn agy_login_marker() -> Option<String> {
 
 #[cfg(target_os = "macos")]
 async fn fetch_agy_cli(now: DateTime<Utc>) -> Result<Fetched, ProviderFetchFailure> {
-    let endpoint_resolves = oauth_endpoint_resolves().await;
-    // The Keychain is not consulted when the gate has already closed.
-    let marker = if endpoint_resolves {
-        agy_login_marker().await
-    } else {
-        None
+    let Some(marker) = agy_login_marker().await else {
+        return Err(ProviderFetchFailure::terminal(AGY_NOT_SIGNED_IN));
     };
-    fetch_agy_cli_gated(
-        now,
-        endpoint_resolves,
-        marker,
-        &AGY_LATCH,
-        run_agy_cli_candidates,
-    )
-    .await
-}
-
-/// `spawned` is false only when there was no candidate to run; any call into
-/// `fetch_agy_cli_from` counts as an attempt.
-#[cfg(target_os = "macos")]
-async fn run_agy_cli_candidates(now: DateTime<Utc>) -> Result<Fetched, AgyRunError> {
-    let candidates = agy_cli_artifact_candidates(true).await;
-    let mut last_failure = None;
-    for executable in candidates {
-        match fetch_agy_cli_from(&executable, now).await {
-            Ok(fetched) => return Ok(fetched),
-            Err(failure) => last_failure = Some(failure),
-        }
-    }
-    Err(match last_failure {
-        Some(failure) => AgyRunError {
-            failure,
-            spawned: true,
-        },
-        None => AgyRunError {
-            failure: ProviderFetchFailure::terminal(AGY_NOT_FOUND),
-            spawned: false,
-        },
-    })
+    let value = direct::direct_quota(now).await.map_err(|error| {
+        use direct::DirectError::*;
+        ProviderFetchFailure::terminal(match error {
+            NotSignedIn => AGY_NOT_SIGNED_IN,
+            KeychainUnavailable | Paused | LoginUnreadable | LoginMissingIdentity => {
+                AGY_DIRECT_PAUSED
+            }
+            OAuthClientNotFound => AGY_NOT_FOUND,
+            OAuthClientRejected | RefreshRejected | AuthExpired => AGY_DIRECT_REJECTED,
+            Network => AGY_DIRECT_RETRYING,
+            UnsupportedResponse => AGY_DIRECT_UNSUPPORTED,
+        })
+    })?;
+    let body = json!({ "status": "SUCCESS", "command": { "name": "usage", "data": value } });
+    let mut fetched = parse_agy_usage(body.to_string().as_bytes(), now)
+        .map_err(|_| ProviderFetchFailure::terminal(AGY_DIRECT_UNSUPPORTED))?;
+    fetched.agy_login_marker = Some(marker);
+    Ok(fetched)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -703,36 +503,6 @@ async fn fetch_agy_cli(_now: DateTime<Utc>) -> Result<Fetched, ProviderFetchFail
     ))
 }
 
-#[cfg(target_os = "macos")]
-async fn fetch_agy_cli_from(
-    executable: &Path,
-    now: DateTime<Utc>,
-) -> Result<Fetched, ProviderFetchFailure> {
-    let future = tokio::process::Command::new(executable)
-        .args([
-            "--print",
-            "/usage",
-            "--output-format",
-            "json",
-            "--print-timeout",
-            "30s",
-        ])
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .output();
-    let output = tokio::time::timeout(std::time::Duration::from_secs(35), future)
-        .await
-        .map_err(|_| ProviderFetchFailure::terminal(AGY_TIMED_OUT))?
-        .map_err(|_| ProviderFetchFailure::terminal("Antigravity CLI usage failed."))?;
-    if !output.status.success() {
-        return Err(ProviderFetchFailure::terminal(
-            "Antigravity CLI usage failed.",
-        ));
-    }
-    parse_agy_usage(&output.stdout, now)
-        .map_err(|_| ProviderFetchFailure::terminal("Antigravity CLI usage could not be decoded."))
-}
 
 // ── Local IDE API ───────────────────────────────────────────────────────────
 
@@ -3427,10 +3197,13 @@ async fn capture_with<I: CapturedIo>(io: &I) -> Result<CapturedAccount, CaptureE
         .await
         .filter(|exit| exit.code == Some(0))
         .ok_or(CaptureError::AgyNotSignedIn)?;
-    let login = parse_agy_login(&agy_item.stdout)?;
+    let (login, refreshed) = agy_login_with_identity(io, &agy_item.stdout).await?;
     drop(agy_item);
 
-    let (client, json) = refresh_with_issuing_client(io, &login, false).await?;
+    let (client, json) = match refreshed {
+        Some(refreshed) => refreshed,
+        None => refresh_with_issuing_client(io, &login, false).await?,
+    };
 
     // The stored id_token is local and untrusted; Google's answer is not.
     if let Some(id_token) = json.get("id_token") {
@@ -3447,6 +3220,47 @@ async fn capture_with<I: CapturedIo>(io: &I) -> Result<CapturedAccount, CaptureE
             .email
             .unwrap_or_else(|| CAPTURED_FALLBACK_LABEL.to_string()),
     })
+}
+
+/// agy's login with an identity. Current agy builds store `id_token_email`
+/// and no `id_token`, so when the item names no `sub`/`aud`, the identity is
+/// taken from Google instead: one refresh trying every candidate client, whose
+/// response `id_token` names the account (Google's answer, not the local
+/// item). That refresh is returned so the caller does not repeat it.
+async fn agy_login_with_identity<I: CapturedIo>(
+    io: &I,
+    stdout: &[u8],
+) -> Result<(AgyLogin, Option<(OAuthClient, Value)>), CaptureError> {
+    match parse_agy_login(stdout) {
+        Ok(login) => return Ok((login, None)),
+        Err(CaptureError::AgyLoginMissingIdentity) => {}
+        Err(error) => return Err(error),
+    }
+    use direct::DirectError;
+    let map = |error: DirectError| match error {
+        DirectError::LoginUnreadable => CaptureError::AgyLoginUnreadable,
+        DirectError::OAuthClientNotFound => CaptureError::OAuthClientNotFound,
+        DirectError::OAuthClientRejected => CaptureError::OAuthClientRejected,
+        DirectError::Network => CaptureError::RefreshUnreachable,
+        _ => CaptureError::RefreshRejected,
+    };
+    let partial = direct::parse_direct_login(stdout).map_err(map)?;
+    let (client, json) = direct::refresh_with_candidate_clients(io, &partial)
+        .await
+        .map_err(map)?;
+    let claims = json
+        .get("id_token")
+        .and_then(Value::as_str)
+        .and_then(jwt_claims)
+        .ok_or(CaptureError::AgyLoginMissingIdentity)?;
+    let sub = non_empty_str(&claims, "sub").ok_or(CaptureError::AgyLoginMissingIdentity)?;
+    let login = AgyLogin {
+        refresh_token: partial.refresh_token,
+        sub: sub.to_string(),
+        aud: client.id.clone(),
+        email: non_empty_str(&claims, "email").map(str::to_string),
+    };
+    Ok((login, Some((client, json))))
 }
 
 /// One refresh of `login`'s token with the client named by its `aud`,
@@ -3554,7 +3368,7 @@ async fn auto_capture_with<I: CapturedIo>(
         }) => return Err(CaptureError::NotSignedIn),
         _ => return Err(CaptureError::Paused),
     };
-    let login = parse_agy_login(&agy_item)?;
+    let (login, refreshed) = agy_login_with_identity(io, &agy_item).await?;
     drop(agy_item);
 
     let key = captured_key(&login.sub);
@@ -3579,7 +3393,10 @@ async fn auto_capture_with<I: CapturedIo>(
         }));
     }
 
-    let (client, json) = refresh_with_issuing_client(io, &login, true).await?;
+    let (client, json) = match refreshed {
+        Some(refreshed) => refreshed,
+        None => refresh_with_issuing_client(io, &login, true).await?,
+    };
     let claims = json
         .get("id_token")
         .and_then(Value::as_str)
@@ -5402,47 +5219,6 @@ mod tests {
         scope.cleanup();
     }
 
-    /// #329: a quota poll must not be able to spawn the CLI when the CLI's own
-    /// token endpoint cannot be resolved, because `agy --print` answers an
-    /// unresolvable endpoint by opening a browser tab for interactive OAuth.
-    ///
-    /// The runner is a counter rather than a real invocation, so this asserts
-    /// the child is never spawned instead of inferring it from the error text —
-    /// an error message can be produced by a path that also ran the CLI.
-    #[tokio::test]
-    async fn an_unresolvable_token_endpoint_does_not_spawn_the_cli() {
-        let now = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).unwrap();
-        let runs = std::cell::Cell::new(0);
-        let latch = std::sync::Mutex::new(AgyLatch::Idle);
-
-        let blocked = fetch_agy_cli_gated(now, false, marker("m1"), &latch, |now| {
-            runs.set(runs.get() + 1);
-            async move { Ok(unreachable_probe_fetched(now)) }
-        })
-        .await;
-        assert_eq!(runs.get(), 0, "an unreachable endpoint must not spawn agy");
-        assert!(matches!(blocked, Err(ProviderFetchFailure::Terminal { .. })));
-
-        // Control. Without it, `runs == 0` above would also hold if the gate
-        // rejected every call for an unrelated reason, or if the runner were
-        // never wired in at all.
-        let allowed = fetch_agy_cli_gated(now, true, marker("m1"), &latch, |now| {
-            runs.set(runs.get() + 1);
-            async move { Ok(unreachable_probe_fetched(now)) }
-        })
-        .await;
-        assert_eq!(runs.get(), 1, "a resolvable endpoint must still spawn agy");
-        assert_eq!(
-            allowed.unwrap().agy_login_marker.as_deref(),
-            Some("m1"),
-            "an agy card carries the login marker it was fetched under"
-        );
-    }
-
-    fn marker(value: &str) -> Option<String> {
-        Some(value.to_string())
-    }
-
     /// agy `/usage` with a weekly bucket in use, an unused 5h bucket whose
     /// reset is Google's now (13:30:15Z) plus five hours, and a 5h bucket in
     /// use with a fixed reset.
@@ -5455,118 +5231,6 @@ mod tests {
           {"id":"3p-5h","name":"Five Hour Limit Remaining","window":"5h","remaining_fraction":0.6,"reset_time":"2026-10-04T16:00:00Z"}
         ]}]}}}"#;
 
-    fn agy_now() -> DateTime<Utc> {
-        DateTime::<Utc>::from_timestamp(1_700_000_000, 0).unwrap()
-    }
-
-    /// Runs the gate once with a counting runner that answers `outcome`.
-    async fn run_gate(
-        latch: &std::sync::Mutex<AgyLatch>,
-        marker: Option<String>,
-        runs: &std::cell::Cell<usize>,
-        outcome: Result<(), bool>,
-    ) -> Result<Fetched, ProviderFetchFailure> {
-        fetch_agy_cli_gated(agy_now(), true, marker, latch, |now| {
-            runs.set(runs.get() + 1);
-            async move {
-                match outcome {
-                    Ok(()) => Ok(unreachable_probe_fetched(now)),
-                    Err(spawned) => Err(AgyRunError {
-                        failure: ProviderFetchFailure::terminal("Antigravity CLI usage failed."),
-                        spawned,
-                    }),
-                }
-            }
-        })
-        .await
-    }
-
-    fn latch_state(latch: &std::sync::Mutex<AgyLatch>) -> AgyLatch {
-        latch.lock().unwrap().clone()
-    }
-
-    /// Signed out, `agy --print /usage` opens a browser for OAuth (measured on
-    /// macOS). No Keychain login item must mean no spawn and no latch write.
-    #[tokio::test]
-    async fn a_missing_login_marker_does_not_spawn_the_cli() {
-        let latch = std::sync::Mutex::new(AgyLatch::Idle);
-        let runs = std::cell::Cell::new(0);
-
-        let blocked = run_gate(&latch, None, &runs, Ok(())).await;
-        assert_eq!(runs.get(), 0, "a signed-out agy must not be spawned");
-        assert!(matches!(blocked, Err(ProviderFetchFailure::Terminal { .. })));
-        assert_eq!(latch_state(&latch), AgyLatch::Idle);
-
-        // Control: the same gate with a marker does run.
-        assert!(run_gate(&latch, marker("m1"), &runs, Ok(())).await.is_ok());
-        assert_eq!(runs.get(), 1);
-        assert_eq!(latch_state(&latch), AgyLatch::Idle);
-    }
-
-    #[tokio::test]
-    async fn a_spawned_failure_latches_until_the_marker_changes() {
-        let latch = std::sync::Mutex::new(AgyLatch::Idle);
-        let runs = std::cell::Cell::new(0);
-
-        assert!(run_gate(&latch, marker("m1"), &runs, Err(true))
-            .await
-            .is_err());
-        assert_eq!(runs.get(), 1);
-        assert_eq!(latch_state(&latch), AgyLatch::Failed { marker: "m1".to_string(), retry_at: None });
-
-        let paused = run_gate(&latch, marker("m1"), &runs, Ok(())).await;
-        assert_eq!(
-            runs.get(),
-            1,
-            "the same login must not respawn a failed agy"
-        );
-        assert!(matches!(paused, Err(ProviderFetchFailure::Terminal { .. })));
-        assert_eq!(latch_state(&latch), AgyLatch::Failed { marker: "m1".to_string(), retry_at: None });
-
-        // A rewritten Keychain item (re-login) re-arms the route.
-        assert!(run_gate(&latch, marker("m2"), &runs, Ok(())).await.is_ok());
-        assert_eq!(runs.get(), 2, "a new login must spawn agy again");
-        assert_eq!(latch_state(&latch), AgyLatch::Idle);
-    }
-
-    /// A timed-out run is transient: it re-arms after the cooldown for the same
-    /// login, while another failure of a started run stays latched (it may be
-    /// agy asking for re-authentication, which can open a browser).
-    #[tokio::test]
-    async fn a_timed_out_run_retries_after_the_cooldown() {
-        let latch = std::sync::Mutex::new(AgyLatch::Idle);
-        let runs = std::cell::Cell::new(0);
-        let t0 = agy_now();
-        let (latch, runs) = (&latch, &runs);
-        let gate = |at: DateTime<Utc>, display: Option<&'static str>| {
-            fetch_agy_cli_gated(at, true, marker("m1"), latch, move |now| {
-                runs.set(runs.get() + 1);
-                async move {
-                    match display {
-                        None => Ok(unreachable_probe_fetched(now)),
-                        Some(text) => Err(AgyRunError {
-                            failure: ProviderFetchFailure::terminal(text),
-                            spawned: true,
-                        }),
-                    }
-                }
-            })
-        };
-        assert!(gate(t0, Some(AGY_TIMED_OUT)).await.is_err());
-        assert_eq!(runs.get(), 1);
-        let early = gate(t0 + chrono::Duration::seconds(AGY_RETRY_SECS - 1), None).await;
-        assert_eq!(runs.get(), 1, "inside the cooldown the same login is not respawned");
-        assert!(matches!(early, Err(ProviderFetchFailure::Terminal { display }) if display == AGY_TIMED_OUT_RETRYING));
-        assert!(gate(t0 + chrono::Duration::seconds(AGY_RETRY_SECS), None).await.is_ok());
-        assert_eq!(runs.get(), 2, "after the cooldown the timed-out route runs again");
-        assert_eq!(latch_state(latch), AgyLatch::Idle);
-
-        // Control: a non-timeout failure stays latched past the cooldown.
-        assert!(gate(t0, Some("Antigravity CLI usage failed.")).await.is_err());
-        assert!(gate(t0 + chrono::Duration::hours(6), None).await.is_err());
-        assert_eq!(runs.get(), 3, "a non-timeout failure waits for a new login");
-    }
-
     /// With no other route configured, the agy failure is what the card shows;
     /// agy missing or signed out keeps the primary's "not logged in".
     #[tokio::test]
@@ -5577,10 +5241,10 @@ mod tests {
             _ => String::new(),
         };
         let timed = with_agy_fallback(unconfigured(), None, unread_marker, || async {
-            Err(ProviderFetchFailure::terminal(AGY_TIMED_OUT_RETRYING))
+            Err(ProviderFetchFailure::terminal(AGY_DIRECT_RETRYING))
         })
         .await;
-        assert_eq!(shown(timed), AGY_TIMED_OUT_RETRYING);
+        assert_eq!(shown(timed), AGY_DIRECT_RETRYING);
         for quiet in [AGY_NOT_FOUND, AGY_NOT_SIGNED_IN] {
             let kept = with_agy_fallback(unconfigured(), None, unread_marker, move || async move {
                 Err(ProviderFetchFailure::terminal(quiet))
@@ -5593,63 +5257,10 @@ mod tests {
             Err(ProviderFetchFailure::terminal("Antigravity loadCodeAssist permission was denied.")),
             None,
             unread_marker,
-            || async { Err(ProviderFetchFailure::terminal(AGY_TIMED_OUT_RETRYING)) },
+            || async { Err(ProviderFetchFailure::terminal(AGY_DIRECT_RETRYING)) },
         )
         .await;
         assert_eq!(shown(other), "Antigravity loadCodeAssist permission was denied.");
-    }
-
-    #[tokio::test]
-    async fn a_failure_without_a_spawn_does_not_latch() {
-        let latch = std::sync::Mutex::new(AgyLatch::Idle);
-        let runs = std::cell::Cell::new(0);
-
-        assert!(run_gate(&latch, marker("m1"), &runs, Err(false))
-            .await
-            .is_err());
-        assert_eq!(runs.get(), 1);
-        assert_eq!(latch_state(&latch), AgyLatch::Idle);
-
-        assert!(run_gate(&latch, marker("m1"), &runs, Ok(())).await.is_ok());
-        assert_eq!(runs.get(), 2, "a CLI that was never found must not latch");
-    }
-
-    #[tokio::test]
-    async fn an_in_flight_attempt_blocks_an_overlapping_poll() {
-        let latch = std::sync::Mutex::new(AgyLatch::InFlight);
-        let runs = std::cell::Cell::new(0);
-
-        let blocked = run_gate(&latch, marker("m1"), &runs, Ok(())).await;
-        assert_eq!(
-            runs.get(),
-            0,
-            "an overlapping poll must not spawn a second agy"
-        );
-        assert!(matches!(blocked, Err(ProviderFetchFailure::Terminal { .. })));
-        assert_eq!(latch_state(&latch), AgyLatch::InFlight);
-    }
-
-    /// A poll cancelled mid-run (the future dropped) must not leave the route
-    /// stuck in `InFlight` for the rest of the process.
-    #[tokio::test]
-    async fn a_cancelled_attempt_releases_the_latch() {
-        let latch = std::sync::Mutex::new(AgyLatch::Idle);
-        let runs = std::cell::Cell::new(0);
-
-        let cancelled = tokio::time::timeout(
-            std::time::Duration::from_millis(10),
-            fetch_agy_cli_gated(agy_now(), true, marker("m1"), &latch, |_| {
-                runs.set(runs.get() + 1);
-                std::future::pending::<Result<Fetched, AgyRunError>>()
-            }),
-        )
-        .await;
-        assert!(cancelled.is_err(), "the runner must still be pending");
-        assert_eq!(runs.get(), 1, "the runner must have started");
-        assert_eq!(latch_state(&latch), AgyLatch::Idle);
-
-        assert!(run_gate(&latch, marker("m1"), &runs, Ok(())).await.is_ok());
-        assert_eq!(runs.get(), 2);
     }
 
     // Pins that neither `-w` nor `-g` (which would request the secret) is added.
@@ -5676,23 +5287,6 @@ mod tests {
         assert_eq!(parse_keychain_mdat(without_mdat), None);
     }
 
-    fn unreachable_probe_fetched(now: DateTime<Utc>) -> Fetched {
-        Fetched {
-            agy_login_marker: None,
-            bound_account_key: None,
-            source: "agy".to_string(),
-            identity: None,
-            account_scope: Err(AccountScopeError::NoTrustedEvidence),
-            history_scope: Err(AccountScopeError::NoTrustedEvidence),
-            cache_binding: None,
-            windows: vec![UsageWindow::from_provider_used_percent(
-                "Probe".to_string(),
-                10.0,
-                None,
-                now,
-            )],
-        }
-    }
 }
 
 /// Fakes for every captured-account boundary: `security`, the artifacts, the
@@ -6038,28 +5632,71 @@ mod captured_account_tests {
     }
 
     #[tokio::test]
-    async fn capture_without_sub_or_aud_fails_without_write() {
+    async fn capture_without_a_stored_identity_takes_googles() {
+        // Current agy items store `id_token_email` and no `id_token`.
         for claims in [
             Some(json!({ "aud": AUD, "email": "a@example.com" })),
             Some(json!({ "sub": "sub-a", "email": "a@example.com" })),
             None,
         ] {
-            let mut io = FakeIo::new("capture-missing-identity");
+            let mut io = FakeIo::new("capture-identity-from-google");
             io.agy_item = Some(agy_item("1//rt-a", claims));
-            io.artifacts = artifacts_where_positional_pick_differs();
-            assert_eq!(
-                capture_with(&io).await.err(),
-                Some(CaptureError::AgyLoginMissingIdentity)
-            );
-            assert_eq!(
-                io.security_calls.borrow().len(),
-                1,
-                "only agy's item was read"
-            );
-            assert!(io.writes().is_empty());
-            assert!(io.items.borrow().is_empty());
-            assert_eq!(io.network_calls(), 0);
+            io.artifacts = vec![format!("agy\0{OTHER}\0{AUD}\0{}\0", secret('a')).into_bytes()];
+            io.token = Box::new(|client, _| {
+                if client.id == AUD {
+                    Ok(token_ok(
+                        "ya29.fresh",
+                        json!({ "id_token": jwt(json!({ "sub": "sub-g", "aud": AUD, "email": "g@example.com" })) }),
+                    ))
+                } else {
+                    Ok((401, r#"{"error":"unauthorized_client"}"#.to_string()))
+                }
+            });
+            let account = capture_with(&io).await.unwrap_or_else(|e| panic!("{e:?}"));
+            assert_eq!(account.key, captured_key("sub-g"));
+            assert_eq!(account.label, "g@example.com");
+            assert_eq!(io.writes().len(), 1);
+            let stored = io.items.borrow().get(&account.key).cloned().unwrap();
+            let (refresh, id, _) = decode_value(&stored);
+            assert_eq!((refresh.as_str(), id.as_str()), ("1//rt-a", AUD));
+            assert_eq!(io.token_calls.borrow().len(), 2, "one refresh, no repeat");
         }
+    }
+
+    #[tokio::test]
+    async fn capture_fails_without_write_when_google_names_no_account() {
+        let mut io = FakeIo::new("capture-missing-identity");
+        io.agy_item = Some(agy_item("1//rt-a", None));
+        io.artifacts = artifacts_where_positional_pick_differs();
+        assert_eq!(
+            capture_with(&io).await.err(),
+            Some(CaptureError::AgyLoginMissingIdentity)
+        );
+        assert!(io.writes().is_empty());
+        assert!(io.items.borrow().is_empty());
+    }
+
+    #[tokio::test]
+    async fn auto_capture_without_a_stored_identity_takes_googles() {
+        let mut io = FakeIo::new("auto-identity-from-google");
+        io.agy_item = Some(agy_item("1//rt-a", None));
+        io.artifacts = vec![format!("agy\0{AUD}\0{}\0", secret('a')).into_bytes()];
+        io.token = Box::new(|_, _| {
+            Ok(token_ok(
+                "ya29.fresh",
+                json!({ "id_token": jwt(json!({ "sub": "sub-g", "email": "g@example.com" })) }),
+            ))
+        });
+        let first = auto_capture_with(&io, &[]).await.unwrap_or_else(|e| panic!("{e:?}"));
+        assert!(matches!(first, AutoCaptured::Captured(ref a) if a.key == captured_key("sub-g")));
+        // The same login again: identified by Google, no second write.
+        let again = auto_capture_with(&io, &[]).await.unwrap_or_else(|e| panic!("{e:?}"));
+        assert!(matches!(again, AutoCaptured::Unchanged(_)));
+        assert_eq!(io.writes().len(), 1);
+        // A removed account is skipped without a write.
+        let removed = auto_capture_with(&io, &[captured_key("sub-g")]).await.unwrap();
+        assert_eq!(removed, AutoCaptured::SkippedRemoved);
+        assert_eq!(io.writes().len(), 1);
     }
 
     #[tokio::test]
@@ -6459,6 +6096,8 @@ mod captured_account_tests {
             "1//SENTINELTOKEN",
             Some(json!({ "sub": "SENTINELSUB", "email": "SENTINELMAIL@example.com" })),
         ));
+        // Google's answer names no account either.
+        io.artifacts = artifacts_where_positional_pick_differs();
         cases.push(io);
         let mut io = FakeIo::new("sentinel-client");
         io.agy_item = Some(login());

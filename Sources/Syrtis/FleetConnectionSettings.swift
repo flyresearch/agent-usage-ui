@@ -44,7 +44,7 @@ struct FleetConnectionSettings: View {
             Toggle("启用 Antigravity 在线额度",isOn:Binding(get:{draft.settings.agyQuotaEnabled == true},set:{draft.settings.agyQuotaEnabled=$0}))
             if draft.settings.agyQuotaEnabled == true {
                 pathField("Antigravity CLI 程序",path:Binding(get:{draft.settings.agyExecutable ?? ""},set:{draft.settings.agyExecutable=$0}),directory:false)
-                Text("通过官方 /usage JSON 命令每六十秒查询；要求 CLI 1.1.11 或更新版本，不启动模型轮次。登录由原生 CLI 管理。")
+                Text("每六十秒读取 agy 的钥匙串登录并直接向 Google 查询额度；不启动 agy，不写入任何登录信息。agy 未登录时只等待，不做任何操作。程序路径仅用于识别 OAuth 客户端。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Toggle("启用 Claude 会话额度",isOn:Binding(get:{draft.settings.claudeQuotaEnabled == true},set:{draft.settings.claudeQuotaEnabled=$0}))

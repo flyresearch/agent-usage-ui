@@ -371,6 +371,13 @@ changes; network failures retry on the next poll. The result uses `/usage`
 field names, so `AgyQuota.decodeSummary` shares validation and window identity
 with the CLI decoder. `cargo test -p tb_core_ffi direct_live -- --ignored` is
 the opt-in live smoke; it prints only counts or the fixed error code.
+The native lane's `agy` leg (`fetch_agy_cli` in
+[agent_antigravity.rs](../../crates/tb_core_ffi/src/agent_antigravity.rs)) uses
+the same direct route, so no scope starts `agy`; the former DNS gate and
+failure latch around the spawn are removed with it. With agy signed out, the
+route reads no secret and makes no request: it waits for agy's login to
+appear. Captured accounts take the account identity from Google's refresh
+`id_token` when agy's item carries none.
 
 Both provider states and configuration generations are independent. The menu-bar
 remaining percentage follows the selected native quota window; each provider has separate

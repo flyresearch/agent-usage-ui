@@ -169,12 +169,16 @@ fn normalized_summary(body: &str) -> Option<Value> {
             };
             buckets.push(json!({
                 "id": id,
+                "name": bucket.get("displayName").and_then(Value::as_str).unwrap_or(""),
                 "window": bucket.get("window").and_then(Value::as_str).unwrap_or(""),
                 "remaining_fraction": bucket.get("remainingFraction").cloned().unwrap_or(Value::Null),
                 "reset_time": bucket.get("resetTime").cloned().unwrap_or(Value::Null),
             }));
         }
-        groups.push(json!({ "buckets": buckets }));
+        groups.push(json!({
+            "name": group.get("displayName").and_then(Value::as_str).unwrap_or(""),
+            "buckets": buckets,
+        }));
     }
     let has_bucket = groups
         .iter()
@@ -182,16 +186,16 @@ fn normalized_summary(body: &str) -> Option<Value> {
     has_bucket.then(|| json!({ "groups": groups }))
 }
 
-struct DirectAgyLogin {
-    refresh_token: String,
+pub(super) struct DirectAgyLogin {
+    pub(super) refresh_token: String,
     /// The issuing client's id, when the item still carries an `id_token`.
-    aud: Option<String>,
+    pub(super) aud: Option<String>,
 }
 
 /// agy's go-keyring item. Builds since late 2026 store `id_token_email` and
 /// no `id_token`, so unlike capture this route does not require an identity:
 /// it never names the account, it only needs the refresh token.
-fn parse_direct_login(stdout: &[u8]) -> Result<DirectAgyLogin, DirectError> {
+pub(super) fn parse_direct_login(stdout: &[u8]) -> Result<DirectAgyLogin, DirectError> {
     use base64::Engine as _;
     match parse_agy_login(stdout) {
         Ok(login) => Ok(DirectAgyLogin {
@@ -250,7 +254,7 @@ fn candidate_clients(aud: Option<&str>, artifacts: Vec<Vec<u8>>) -> Vec<OAuthCli
 /// One refresh of agy's token, trying candidate clients in order;
 /// `invalid_client` / `unauthorized_client` moves to the next, any other
 /// rejection stops.
-async fn refresh_with_candidate_clients<I: CapturedIo>(
+pub(super) async fn refresh_with_candidate_clients<I: CapturedIo>(
     io: &I,
     login: &DirectAgyLogin,
 ) -> Result<(OAuthClient, Value), DirectError> {
@@ -503,9 +507,9 @@ mod tests {
         let value = direct_quota_with(&io, &api, &cell, now()).await.unwrap();
         assert_eq!(
             value,
-            json!({ "groups": [{ "buckets": [
-                { "id": "gemini-weekly", "window": "weekly", "remaining_fraction": 0.75, "reset_time": "2026-11-10T00:00:00Z" },
-                { "id": "gemini-5h", "window": "5h", "remaining_fraction": 1, "reset_time": null },
+            json!({ "groups": [{ "name": "Gemini Models", "buckets": [
+                { "id": "gemini-weekly", "name": "Weekly", "window": "weekly", "remaining_fraction": 0.75, "reset_time": "2026-11-10T00:00:00Z" },
+                { "id": "gemini-5h", "name": "5 hours", "window": "5h", "remaining_fraction": 1, "reset_time": null },
             ]}]})
         );
         assert_eq!(
@@ -671,6 +675,18 @@ mod tests {
         api.summary.set(Ok(SUMMARY));
         direct_quota_with(&io, &api, &cell, now()).await.unwrap();
         assert_eq!(io.token_calls.borrow().len(), 2);
+    }
+
+    #[test]
+    fn the_native_card_reads_the_direct_summary_like_agy_usage() {
+        let value = normalized_summary(SUMMARY).unwrap();
+        let body = json!({ "status": "SUCCESS", "command": { "name": "usage", "data": value } });
+        let fetched = parse_agy_usage(body.to_string().as_bytes(), now()).unwrap();
+        let labels: Vec<&str> = fetched.windows.iter().map(|w| w.label_for_test()).collect();
+        assert_eq!(
+            labels,
+            ["Gemini Models · Weekly", "Gemini Models · 5 hours"]
+        );
     }
 
     #[tokio::test]
