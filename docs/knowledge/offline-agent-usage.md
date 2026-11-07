@@ -4,8 +4,8 @@ id: offline-agent-usage
 kind: canonical
 scope: repository
 read_when: changing the isolated local collector UI
-last_verified: 2026-10-20
-sources: ["Sources/Syrtis/NativeClaudeBridge.swift", "Sources/Syrtis/AgentUsageMode.swift", "Sources/Syrtis/AgentUsagePreferencesMigration.swift", "crates/tb_core_ffi/src/runtime_identity.rs", "crates/tb_core_ffi/src/native_history_import.rs", "offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "Sources/Syrtis/FleetPresentation.swift", "Sources/Syrtis/FleetPresentationCheck.swift", "Sources/Syrtis/Views/StatsView.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
+last_verified: 2026-11-07
+sources: ["Sources/Syrtis/NativeClaudeBridge.swift", "Sources/Syrtis/AgentUsageMode.swift", "Sources/Syrtis/AgentUsagePreferencesMigration.swift", "crates/tb_core_ffi/src/runtime_identity.rs", "crates/tb_core_ffi/src/native_history_import.rs", "offline-ui/Package.swift", "offline-ui/Sources/UsageCore/Snapshot.swift", "offline-ui/Sources/UsageCore/Fleet.swift", "offline-ui/Sources/UsageCore/Collector.swift", "offline-ui/Sources/AgentUsage/App.swift", "offline-ui/Sources/AgentUsage/DashboardView.swift", "offline-ui/scripts/bundle.sh", "Makefile", "offline-ui/Sources/UsageCore/CoverageDiagnostics.swift", "offline-ui/Sources/UsageCore/ConfigurationEditor.swift", "Sources/Syrtis/FleetCoverageView.swift", "Sources/Syrtis/FleetConnectionSettings.swift", "Sources/Syrtis/FleetLiveViews.swift", "offline-ui/Sources/UsageCore/CodexQuota.swift", "offline-ui/Sources/UsageCore/AgyQuota.swift", "crates/tb_core_ffi/src/agent_antigravity_direct.rs", "Sources/Syrtis/FleetUsageDataSource.swift", "offline-ui/Sources/UsageCore/RecentActivity.swift", "offline-ui/Sources/UsageCore/ClaudeQuota.swift", "scripts/claude-statusline-bridge.py", "scripts/test_claude_statusline_bridge.py", "offline-ui/Sources/UsageCore/NativeQuotaHistory.swift", "offline-ui/Tests/UsageCoreTests/QuotaHistoryChecks.swift", "Sources/Syrtis/FleetQuotaPolicy.swift", "Sources/Syrtis/FleetQuotaDisplaySettings.swift", "Sources/Syrtis/QuotaSelectionPolicy.swift", "Sources/Syrtis/TrayIcons.swift", "Sources/Syrtis/UpdaterService.swift", "Sources/Syrtis/ClientTray.swift", "Sources/Syrtis/FleetRuntime.swift", "Sources/Syrtis/FleetPresentation.swift", "Sources/Syrtis/FleetPresentationCheck.swift", "Sources/Syrtis/Views/StatsView.swift", "offline-ui/Sources/UsageCore/QuotaHistoryPresentation.swift", "offline-ui/Tests/UsageCoreTests/QuotaPresentationChecks.swift"]
 ---
 
 # Agent Usage: Syrtis with fleet scope
@@ -353,16 +353,24 @@ The native bridge is independently implemented and tested with synthetic RPC
 servers. `AGENT_USAGE_TEST_CODEX` explicitly opts the standalone check harness
 into a native read-only smoke test; ordinary tests never query real accounts.
 
-Antigravity uses the official CLI `-p /usage --output-format json` command,
-introduced as a no-turn read-only print command in CLI 1.1.11. The bridge checks
-the native version before querying, and rejects responses with any model turn or
-consumed token. It requires structured quota buckets, validates remaining
-fractions and reset times, coalesces mirrored bucket IDs, and marks missing
-fractions partial. Provider names/account text are not displayed or persisted.
-The process runs in a temporary directory with bounded output and timeout.
-`AGENT_USAGE_TEST_AGY` opts into a native smoke test. Official references:
-[usage command](https://www.antigravity.google/docs/cli/commands/usage) and
-[CLI changelog](https://www.antigravity.google/docs/changelog?tab=cli).
+Antigravity no longer runs `agy`. Its print mode is not safe unattended: when
+silent keyring auth takes longer than ten seconds (a slow TLS handshake to the
+token endpoint is enough), `agy -p /usage` falls through to interactive consumer
+OAuth and opens a browser tab, so a once-a-minute poll turned network hiccups
+into browser tabs (observed 2026-11-04 and 2026-11-07 in agy's own logs). The
+fleet lane instead calls the core's `tb_antigravity_direct_quota`
+([agent_antigravity_direct.rs](../../crates/tb_core_ffi/src/agent_antigravity_direct.rs)):
+it reads agy's go-keyring login item with `-w` only when the item's
+attributes-only marker changes, refreshes an access token in memory with the
+issuing OAuth client (found in the installed agy/Antigravity artifacts; every
+candidate is tried when the item carries no `id_token`, as current agy builds
+store only `id_token_email`), and calls Code Assist `retrieveUserQuotaSummary`.
+Nothing is written to any Keychain item or persisted. A failed secret read
+(denied dialog) or a rejected refresh token stops the route until agy's login
+changes; network failures retry on the next poll. The result uses `/usage`
+field names, so `AgyQuota.decodeSummary` shares validation and window identity
+with the CLI decoder. `cargo test -p tb_core_ffi direct_live -- --ignored` is
+the opt-in live smoke; it prints only counts or the fixed error code.
 
 Both provider states and configuration generations are independent. The menu-bar
 remaining percentage follows the selected native quota window; each provider has separate

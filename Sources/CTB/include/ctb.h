@@ -204,6 +204,13 @@ char *tb_antigravity_remove(const char *key);
 // `{"marker":"absent"}` without a login; any other outcome is the error
 // `marker_unavailable`. Blocking: call off the main thread.
 char *tb_antigravity_login_marker(void);
+// agy's quota without starting agy (which can open a browser for OAuth):
+// reads agy's login item, refreshes an access token in memory and calls Code
+// Assist retrieveUserQuotaSummary. Never writes the Keychain. Success data is
+// {"groups":[{"buckets":[{"id","window","remaining_fraction","reset_time"}]}]}
+// (agy /usage field names); the error is one fixed code (see lib.rs).
+// Blocking: call off the main thread.
+char *tb_antigravity_direct_quota(void);
 // One automatic capture of agy's current login, run once per marker change
 // while automatic capture is on. `removed_keys_json` is `["<64 hex>", ...]`,
 // the keys the user removed; a listed account is skipped before any request.

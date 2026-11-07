@@ -3,7 +3,7 @@ import CryptoKit
 import Darwin
 import CoreFoundation
 
-public enum NativeQuotaError: Error, Sendable { case missingSample, staleSample, notLoggedIn, unsupportedAccount, unsupportedVersion, invalidResponse, requestFailed, timedOut, launchFailed, cancelled }
+public enum NativeQuotaError: Error, Sendable { case missingSample, staleSample, notLoggedIn, unsupportedAccount, unsupportedVersion, invalidResponse, requestFailed, timedOut, launchFailed, cancelled, keychainUnavailable }
 public struct NativeQuotaWindow: Identifiable, Sendable {
     public let id: String
     public let title: String

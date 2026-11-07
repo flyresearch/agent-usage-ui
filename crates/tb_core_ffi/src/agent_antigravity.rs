@@ -2554,6 +2554,9 @@ fn gemini_home_from(
     Some(PathBuf::from(root))
 }
 
+#[path = "agent_antigravity_direct.rs"]
+pub(crate) mod direct;
+
 // ── Captured accounts (extra Google accounts copied from agy's login) ─────────
 //
 // A captured account is a second Google login the user signed `agy` into once

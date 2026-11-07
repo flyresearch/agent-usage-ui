@@ -309,7 +309,9 @@ actor FleetUsageDataSource: UsageDataSource {
         let task=Task.detached {
             switch provider {
             case .codex:return try CodexQuota.fetch(executable:executable)
-            case .agy:return try AgyQuota.fetch(executable:executable)
+            // Never `agy --print /usage`: it opens a browser for OAuth
+            // whenever its silent auth is slow (see agent_antigravity_direct.rs).
+            case .agy:return try AgyDirectQuota.fetch()
             case .claude:return try ClaudeQuota.fetch(path:executable)
             }
         }
@@ -339,6 +341,7 @@ actor FleetUsageDataSource: UsageDataSource {
             case NativeQuotaError.missingSample:message="等待 Claude Code 会话提供额度；需在订阅会话首次响应后获取"
             case NativeQuotaError.staleSample:message="Claude 会话额度样本已过期；等待新的会话观测"
             case NativeQuotaError.notLoggedIn:message="尚未登录，请先在对应原生 CLI 中登录"
+            case NativeQuotaError.keychainUnavailable:message="无法读取 agy 的钥匙串登录；重新登录 agy 或重启应用后重试"
             case NativeQuotaError.unsupportedAccount:message="当前账号未提供可读取的额度窗口"
             case NativeQuotaError.timedOut:message="额度查询超时，请稍后重试"
             case NativeQuotaError.unsupportedVersion:message="CLI 版本不支持安全的只读额度查询，请升级后重试"
@@ -353,6 +356,26 @@ actor FleetUsageDataSource: UsageDataSource {
         if quotaGenerations[provider,default:0]==generation {
             quotaFlights[provider]=nil
             await MainActor.run {if FleetUIState.shared.quotaState(provider).quotaGeneration==generation {FleetUIState.shared.quotaState(provider).quotaLoading=false}}
+        }
+    }
+}
+
+/// agy's quota through the core, never by starting `agy` (whose print mode
+/// opens a browser for OAuth when its silent auth is slow). Blocking.
+enum AgyDirectQuota {
+    static func fetch(now:Date=Date()) throws -> NativeQuotaSnapshot {
+        let data:Data
+        do {data=try TBCore.antigravityDirectQuota()}
+        catch TBCoreError.bridge(let code) {throw error(code)}
+        return try AgyQuota.decodeSummary(data,now:now)
+    }
+    static func error(_ code:String) -> NativeQuotaError {
+        switch code {
+        case "not_signed_in","refresh_rejected","auth_expired":return .notLoggedIn
+        case "paused","keychain_unavailable":return .keychainUnavailable
+        case "network":return .requestFailed
+        case "unsupported_response":return .unsupportedAccount
+        default:return .invalidResponse
         }
     }
 }

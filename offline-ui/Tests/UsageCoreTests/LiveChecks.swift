@@ -87,9 +87,7 @@ func liveChecks(_ check:(String,() throws -> Void)->Void) {
         do {_=try CodexQuota.fetch(executable:timeout.path,timeout:0.1);throw CheckFailure.failed}
         catch NativeQuotaError.timedOut {}
     }
-    check("agy_readonly_response_validation_and_version_gate") {
-        try require(AgyQuota.supportedVersion("1.4.2\n") && AgyQuota.supportedVersion("1.1.11"))
-        try require(!AgyQuota.supportedVersion("1.1.10") && !AgyQuota.supportedVersion("unknown") && !AgyQuota.supportedVersion("1.-2.1"))
+    check("agy_readonly_response_validation") {
         let bucket:[String:Any] = ["id":"fixture", "name":"PRIVATE-NAME", "window":"weekly", "remaining_fraction":0.75,"reset_time":"2026-01-02T00:00:00Z"]
         func response(_ buckets:[[String:Any]],turns:Int=0) throws -> Data {
             try JSONSerialization.data(withJSONObject:["status":"SUCCESS","num_turns":turns,"usage":["total_tokens":0],"command":["name":"usage","data":["groups":[["buckets":buckets]]]]])
@@ -106,6 +104,10 @@ func liveChecks(_ check:(String,() throws -> Void)->Void) {
         try rejects {_=try AgyQuota.decode(response([invalid]),now:now)}
         invalid["remaining_fraction"]=0.5
         try rejects {_=try AgyQuota.decode(response([bucket,invalid]),now:now)}
+        // The core's direct summary keeps the CLI's window identity.
+        let summary=try AgyQuota.decodeSummary(JSONSerialization.data(withJSONObject:["groups":[["buckets":[bucket]]]]),now:now)
+        try require(summary.windows.map(\.id)==value.windows.map(\.id) && summary.remaining(at:now)==75)
+        try rejects {_=try AgyQuota.decodeSummary(Data("{}".utf8),now:now)}
     }
     check("claude_statusline_snapshot_freshness_missing_and_partial") {
         let row:[String:Any]=["window":"five_hour","used_percentage":0,"resets_at":1767230000]
@@ -153,13 +155,6 @@ func liveChecks(_ check:(String,() throws -> Void)->Void) {
         try require(try settings.collectionInterval()==30)
         settings.refreshIntervalSeconds=7
         try rejects {_=try settings.collectionInterval()}
-    }
-    if let binary=ProcessInfo.processInfo.environment["AGENT_USAGE_TEST_AGY"] {
-        check("explicit_native_agy_readonly_smoke") {
-            let snapshot=try AgyQuota.fetch(executable:binary)
-            try require(!snapshot.windows.isEmpty)
-            print("{\"native_agy_quota\":true,\"windows\":\(snapshot.windows.count)}")
-        }
     }
     if let binary=ProcessInfo.processInfo.environment["AGENT_USAGE_TEST_CODEX"] {
         check("explicit_native_codex_readonly_smoke") {

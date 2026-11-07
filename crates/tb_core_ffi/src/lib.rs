@@ -1282,6 +1282,29 @@ pub extern "C" fn tb_antigravity_capture() -> *mut c_char {
     })
 }
 
+/// agy's quota without starting agy: reads agy's login item (`gemini` /
+/// `antigravity`, with `-w` only after its login marker changes), refreshes an
+/// access token in memory with the issuing OAuth client, and calls Code
+/// Assist `retrieveUserQuotaSummary`. Never writes any Keychain item and can
+/// never open a browser. Success data is `{"groups":[{"buckets":[{"id",
+/// "window","remaining_fraction","reset_time"}]}]}`, the field names `agy
+/// /usage` prints. The error is one fixed code: `not_signed_in`,
+/// `keychain_unavailable`, `paused`, `agy_login_unreadable`,
+/// `agy_login_missing_identity`, `oauth_client_not_found`,
+/// `oauth_client_rejected`, `refresh_rejected`, `network`, `auth_expired`,
+/// `unsupported_response`. Blocking (keychain + network): call off the main
+/// thread.
+#[no_mangle]
+pub extern "C" fn tb_antigravity_direct_quota() -> *mut c_char {
+    guarded("tb_antigravity_direct_quota", || {
+        envelope(
+            RUNTIME
+                .block_on(agent_antigravity::direct::direct_quota(chrono::Utc::now()))
+                .map_err(|error| error.code().to_string()),
+        )
+    })
+}
+
 /// agy's login marker for automatic capture, from the attributes-only query
 /// `security find-generic-password -s gemini -a antigravity` (no `-w`, no
 /// `-g`: no secret is requested, and no Keychain dialog can appear). Success

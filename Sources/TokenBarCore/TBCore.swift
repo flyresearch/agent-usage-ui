@@ -134,6 +134,19 @@ package struct AntigravityLoginMarker: Decodable {
     package let marker: String
 }
 
+/// Success data of `tb_antigravity_direct_quota`. Re-encoded for the
+/// fleet decoder; holds no secret.
+package struct AntigravityDirectQuota: Codable {
+    package struct Group: Codable { package let buckets: [Bucket] }
+    package struct Bucket: Codable {
+        package let id: String
+        package let window: String
+        package let remaining_fraction: Double?
+        package let reset_time: String?
+    }
+    package let groups: [Group]
+}
+
 /// Success data of `tb_antigravity_auto_capture`. `key` and `label` are
 /// present for `captured` and `unchanged`, absent for `skipped_removed`.
 public struct AntigravityAutoCaptureResult: Decodable, Equatable, Sendable {
@@ -530,6 +543,15 @@ public enum TBCore {
     public static func antigravityLoginMarker() throws -> String {
         let result: AntigravityLoginMarker = try unwrap(tb_antigravity_login_marker())
         return result.marker
+    }
+
+    /// agy's grouped quota without starting `agy`, as `{"groups":[...]}` JSON
+    /// in agy `/usage` field names. Blocking (spawns `security`, reaches
+    /// Google): never call on the main thread. A failure throws
+    /// `bridge(<fixed code>)`, e.g. `not_signed_in`, `paused`, `network`.
+    public static func antigravityDirectQuota() throws -> Data {
+        let result: AntigravityDirectQuota = try unwrap(tb_antigravity_direct_quota())
+        return try JSONEncoder().encode(result)
     }
 
     /// One automatic capture of agy's current login, skipping `removedKeys`.
