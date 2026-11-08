@@ -27,6 +27,9 @@ struct AgentIconView: View {
         "kimchi", "senpi", "omp",
         // DeepSeek Harness desktop app icon, cropped to its rounded square.
         "dsh",
+        // WorkBuddy desktop app icon (/Applications/WorkBuddy.app), cropped
+        // to its rounded square.
+        "workbuddy",
     ]
 
     /// Clients that share another client's brand icon. The Antigravity CLI is
@@ -152,9 +155,6 @@ struct AgentIconView: View {
                         .scaledToFit()
                         .frame(width: size * 0.64, height: size * 0.64)
                         .foregroundStyle(.white)
-                } else if clientId == "workbuddy" {
-                    Image(systemName:"person.2.fill")
-                        .font(.system(size:size*0.5,weight:.semibold)).foregroundStyle(.white)
                 } else {
                     Text(String(style.displayName.prefix(1)).uppercased())
                         .font(.system(size: size * 0.55, weight: .bold))

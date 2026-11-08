@@ -4816,7 +4816,7 @@ enum SelfTest {
                 && !officialClientIDs.contains("junie"),
             "icon aliases are official while fallback-only clients are not")
         expect(
-            ["zcode", "augment", "hindsight", "muse", "reasonix", "kimchi", "senpi", "omp", "dsh"]
+            ["zcode", "augment", "hindsight", "muse", "reasonix", "kimchi", "senpi", "omp", "dsh", "workbuddy"]
                 .allSatisfy(officialClientIDs.contains),
             "the 2026-10 clients ship a loadable brand asset")
         let renderedBrandImageMetrics = MainActor.assumeIsolated {
