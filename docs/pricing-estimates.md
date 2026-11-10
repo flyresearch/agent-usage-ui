@@ -3,7 +3,7 @@
 The UI adapts the original Syrtis cost fields from normalized collector rows.
 The collector never contacts a pricing endpoint. The bundled catalog is
 `offline-ui/Sources/UsageCore/Resources/prices-v1.json`; each exact model entry
-carries its official source URL. Version `2026-11-03.standard-v4` contains 40
+carries its official source URL. Version `2026-11-10.standard-v5` contains 41
 reviewed model rates, in USD per million tokens.
 
 This is current-directory repricing of known tokens, not historical actual
