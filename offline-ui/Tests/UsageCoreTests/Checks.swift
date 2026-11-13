@@ -75,11 +75,12 @@ func decodeFleet(_ value:[String:Any]) throws ->FleetSnapshot {try FleetSnapshot
         }
         check("bundled_catalog_current_model_rates") {
             let catalog=try PriceCatalog.bundled()
-            try require(catalog.version=="2026-11-10.standard-v5")
+            try require(catalog.version=="2026-11-13.standard-v6")
             try require(catalog.rates["claude-fable-5-2"]?.input=="8" && catalog.rates["claude-fable-5-2"]?.cache_write=="10")
             try require(catalog.rates["gpt-6.1-terra"]?.input=="1" && catalog.rates["gpt-6.1-terra"]?.cache_read=="0.05")
             try require(catalog.rates["claude-opus-4-6"]?.cache_write=="6.25")
             try require(catalog.rates["gemini-3.1-pro-preview"]?.output=="12")
+            try require(catalog.rates["gemini-4-hydrogen"]?.input=="1.5" && catalog.rates["gemini-4-hydrogen"]?.cache_read=="0.075" && catalog.rates["gemini-4-hydrogen"]?.output=="7.5")
             try require(catalog.rates["deepseek-v4.1-flash"]?.cache_read=="0.006")
             var value=fixture();var rows=value["rows"] as! [[String:Any]]
             rows[0]["model"]="gpt-6.1-terra";value["rows"]=rows

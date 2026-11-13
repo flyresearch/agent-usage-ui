@@ -178,6 +178,14 @@
       "reasoning": "10",
       "source": "https://ai.google.dev/gemini-api/docs/pricing"
     },
+    "gemini-4-hydrogen": {
+      "cache_read": "0.075",
+      "cache_write": null,
+      "input": "1.5",
+      "output": "7.5",
+      "reasoning": "7.5",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
     "gpt-5": {
       "cache_read": "0.125",
       "cache_write": null,
@@ -332,5 +340,5 @@
     }
   },
   "schema_version": 1,
-  "version": "2026-11-10.standard-v5"
+  "version": "2026-11-13.standard-v6"
 }

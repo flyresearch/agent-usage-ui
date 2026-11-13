@@ -3,7 +3,7 @@
 The UI adapts the original Syrtis cost fields from normalized collector rows.
 The collector never contacts a pricing endpoint. The bundled catalog is
 `offline-ui/Sources/UsageCore/Resources/prices-v1.json`; each exact model entry
-carries its official source URL. Version `2026-11-10.standard-v5` contains 41
+carries its official source URL. Version `2026-11-13.standard-v6` contains 42
 reviewed model rates, in USD per million tokens.
 
 This is current-directory repricing of known tokens, not historical actual
@@ -28,7 +28,9 @@ Rates were verified against official model pages and the following price pages:
   Gemini 3.6/3.8 Flash use the list price valid through 2026-12-31 and Gemini 4
   Argon the list price valid through 2026-11-30; both double afterwards, so the
   catalog must be revised then. Gemini has no separate cache-write price, so
-  `cache_write` is null. The agy label `gemini-4-argon-trial` is not listed
+  `cache_write` is null. `gemini-4-hydrogen` uses the global standard paid-tier
+  list rates ($1.50 input, $0.075 cache read, $7.50 output/reasoning per 1M
+  tokens). The agy label `gemini-4-argon-trial` is not listed
   separately and is deliberately priced at `gemini-4-argon` list rates; it is an
   estimate, not an agy subscription charge. `gemini-3.8-flash-n` has no official
   price and stays unpriced. `gpt-5.4-codex` is not on the OpenAI price page and
