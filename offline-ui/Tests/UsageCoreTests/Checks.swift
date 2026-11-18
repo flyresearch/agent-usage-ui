@@ -75,9 +75,18 @@ func decodeFleet(_ value:[String:Any]) throws ->FleetSnapshot {try FleetSnapshot
         }
         check("bundled_catalog_current_model_rates") {
             let catalog=try PriceCatalog.bundled()
-            try require(catalog.version=="2026-11-13.standard-v6")
+            try require(catalog.version=="2026-11-18.standard-v7")
             try require(catalog.rates["claude-fable-5-2"]?.input=="8" && catalog.rates["claude-fable-5-2"]?.cache_write=="10")
             try require(catalog.rates["gpt-6.1-terra"]?.input=="1" && catalog.rates["gpt-6.1-terra"]?.cache_read=="0.05")
+            for (model, input, read, write, output) in [
+                ("gpt-6.2-astra", "8", "0.4", "10", "40"),
+                ("gpt-6.2-astra-law", "8", "0.4", "10", "40"),
+                ("gpt-6.2-sol", "2", "0.1", "2.5", "10")
+            ] {
+                let rate = catalog.rates[model]
+                try require(rate?.input == input && rate?.cache_read == read && rate?.cache_write == write)
+                try require(rate?.output == output && rate?.reasoning == output)
+            }
             try require(catalog.rates["claude-opus-4-6"]?.cache_write=="6.25")
             try require(catalog.rates["gemini-3.1-pro-preview"]?.output=="12")
             try require(catalog.rates["gemini-4-hydrogen"]?.input=="1.5" && catalog.rates["gemini-4-hydrogen"]?.cache_read=="0.075" && catalog.rates["gemini-4-hydrogen"]?.output=="7.5")

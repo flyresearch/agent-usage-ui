@@ -3,12 +3,12 @@
 The UI adapts the original Syrtis cost fields from normalized collector rows.
 The collector never contacts a pricing endpoint. The bundled catalog is
 `offline-ui/Sources/UsageCore/Resources/prices-v1.json`; each exact model entry
-carries its official source URL. Version `2026-11-13.standard-v6` contains 42
+carries its official source URL. Version `2026-11-18.standard-v7` contains 45
 reviewed model rates, in USD per million tokens.
 
 This is current-directory repricing of known tokens, not historical actual
 spend, a subscription bill or provider-specific reseller pricing. The baseline
-is standard short-context inference, five-minute cache writes and peak-period
+is standard short-context inference, short-duration cache writes and peak-period
 prices where applicable. Long-context premiums, fast/batch/flex modes, region,
 residency, tool charges, tax and negotiated/subscription discounts are not
 reconstructed from daily aggregate rows. DeepSeek's retired model IDs are not
@@ -17,6 +17,7 @@ silently mapped to their replacements. Unknown model labels stay unpriced.
 Rates were verified against official model pages and the following price pages:
 
 - The `deepseek-v4.1-flash` model label uses DeepSeek-V4.1-Flash official peak rates as a model-level reference, not a WorkBuddy reseller quote; the official endpoint is named `deepseek-flash`.
+- GPT-6.2 Astra, Sol and Astra for Law use Standard short-context rates and the 30-minute cache-write rate. OpenAI lists the Law configuration at promotional rates through at least 2026-12-31.
 - [OpenAI pricing](https://developers.openai.com/api/docs/pricing), with individual model-page URLs retained in the catalog.
 - [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing).
 - [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/). The
